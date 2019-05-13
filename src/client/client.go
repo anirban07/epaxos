@@ -3,9 +3,11 @@ package main
 import (
 	"bufio"
 	"dlog"
+	"encoding/json"
 	"flag"
 	"fmt"
 	"genericsmrproto"
+	"io/ioutil"
 	"log"
 	"masterproto"
 	"math/rand"
@@ -13,6 +15,7 @@ import (
 	"net/rpc"
 	"runtime"
 	"state"
+	"strconv"
 	"time"
 )
 
@@ -36,6 +39,17 @@ var successful []int
 
 var rarray []int
 var rsp []bool
+var startTimes []time.Time
+var latencies []time.Duration
+var OKrsp []bool
+
+type Statistics struct {
+	ReqsNb int
+	Writes int
+	Rounds int
+	Conflicts int
+	LatenciesNano []int64
+}
 
 func main() {
 	flag.Parse()
@@ -65,14 +79,22 @@ func main() {
 	readers := make([]*bufio.Reader, N)
 	writers := make([]*bufio.Writer, N)
 
+	// This array contains the ids of the replicas to which 
+	// the requests in 1 round will be sent
 	rarray = make([]int, *reqsNb / *rounds + *eps)
+	// This array contains which key the request will touch
+	// The key is 42 for a conflict
 	karray := make([]int64, *reqsNb / *rounds + *eps)
+	// Boolean array indicating if a request is a PUT request or not
 	put := make([]bool, *reqsNb / *rounds + *eps)
+	// Number of requests sent to the corresponding replicas
 	perReplicaCount := make([]int, N)
 	test := make([]int, *reqsNb / *rounds + *eps)
+
 	for i := 0; i < len(rarray); i++ {
 		r := rand.Intn(N)
 		rarray[i] = r
+		// Increase the replica's request count, excluding the eps requests
 		if i < *reqsNb / *rounds {
 			perReplicaCount[r]++
 		}
@@ -130,6 +152,10 @@ func main() {
 
 	before_total := time.Now()
 
+	startTimes = make([]time.Time, *reqsNb + (*eps * *rounds))
+	latencies = make([]time.Duration, *reqsNb + (*eps * *rounds))
+	OKrsp = make([]bool, *reqsNb + (*eps * *rounds))
+	
 	for j := 0; j < *rounds; j++ {
 
 		n := *reqsNb / *rounds
@@ -168,6 +194,7 @@ func main() {
 				}
 				writers[leader].WriteByte(genericsmrproto.PROPOSE)
 				args.Marshal(writers[leader])
+				startTimes[id] = time.Now()
 			} else {
 				//send to everyone
 				for rep := 0; rep < N; rep++ {
@@ -224,6 +251,33 @@ func main() {
 
 	after_total := time.Now()
 	fmt.Printf("Test took %v\n", after_total.Sub(before_total))
+	avg := 0.0
+	latency_nanos := make([]int64, *reqsNb + (*eps * *rounds))
+	for i, latency := range latencies {
+		avg += latency.Seconds()
+		latency_nanos[i] = latency.Nanoseconds()
+		// fmt.Printf("%d, ", latency.Nanoseconds())
+	}
+	fmt.Println()
+	avg = avg * 1000.0 / float64(len(latencies))
+	fmt.Printf("Average latency %fms\n", avg)
+
+	stats := Statistics{
+		ReqsNb: *reqsNb,
+		Writes: *writes,
+		Rounds: *rounds,
+		Conflicts: *conflicts,
+		LatenciesNano: latency_nanos,
+	}
+
+	statsBytes, err := json.Marshal(stats)
+	if err != nil {
+		fmt.Println(err)
+		return
+	}
+	filename := "stats_" + strconv.FormatInt(time.Now().Unix(), 10)
+	ioutil.WriteFile(filename, statsBytes, 0644)
+
 
 	s := 0
 	for _, succ := range successful {
@@ -258,6 +312,11 @@ func waitReplies(readers []*bufio.Reader, leader int, n int, done chan bool) {
 			rsp[reply.CommandId] = true
 		}
 		if reply.OK != 0 {
+			if !OKrsp[reply.CommandId] {
+				OKrsp[reply.CommandId] = true
+				latencies[reply.CommandId] = time.Now().Sub(startTimes[reply.CommandId])
+			}
+
 			successful[leader]++
 		}
 	}
