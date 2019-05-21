@@ -2,6 +2,7 @@ package state
 
 import (
 	"sync"
+	"dlog"
 	//"fmt"
 	//"code.google.com/p/leveldb-go/leveldb"
 	//"encoding/binary"
@@ -51,6 +52,7 @@ func InitState() *State {
 }
 
 func Conflict(gamma *Command, delta *Command) bool {
+	dlog.Printf("Conflict got called")
 	if gamma.K == delta.K {
 		if gamma.Op == PUT || delta.Op == PUT {
 			return true
