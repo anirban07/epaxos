@@ -1,4 +1,5 @@
 package main
+/*
 
 import (
 	"bufio"
@@ -23,20 +24,18 @@ var masterAddr *string = flag.String("maddr", "", "Master address. Defaults to l
 var masterPort *int = flag.Int("mport", 7087, "Master port.  Defaults to 7077.")
 var reqsNb *int = flag.Int("q", 5000, "Total number of requests. Defaults to 5000.")
 var writes *int = flag.Int("w", 100, "Percentage of updates (writes). Defaults to 100%.")
-var noLeader *bool = flag.Bool("e", false, "Egalitarian (no leader). Defaults to false.")
-var fast *bool = flag.Bool("f", false, "Fast Paxos: send message directly to all replicas. Defaults to false.")
+var enhanced *bool = flag.Bool("e", false, "Use enhanced conflict detection. Defaults to false.")
+var fastReads *int = flag.Int("fast", 0, "Percentage of total reads that are fast. Defaults to 0%.")
 var rounds *int = flag.Int("r", 1, "Split the total number of requests into this many rounds, and do rounds sequentially. Defaults to 1.")
 var procs *int = flag.Int("p", 2, "GOMAXPROCS. Defaults to 2")
 var check = flag.Bool("check", false, "Check that every expected reply was received exactly once.")
-var eps *int = flag.Int("eps", 0, "Send eps more messages per round than the client will wait for (to discount stragglers). Defaults to 0.")
-var conflicts *int = flag.Int("c", -1, "Percentage of conflicts. Defaults to 0%")
+var hotKey *int = flag.Int("c", 0, "Percentage of requests using the same key. Defaults to 0%")
 var s = flag.Float64("s", 2, "Zipfian s parameter")
 var v = flag.Float64("v", 1, "Zipfian v parameter")
 
 var N int
 
 var successful []int
-
 var rarray []int
 var rsp []bool
 var startTimes []time.Time
@@ -52,7 +51,6 @@ type Statistics struct {
 }
 
 func main() {
-	state.CONFLICT_FUNC = state.Conflict
 	flag.Parse()
 
 	runtime.GOMAXPROCS(*procs)
@@ -100,9 +98,9 @@ func main() {
 			perReplicaCount[r]++
 		}
 
-		if *conflicts >= 0 {
+		if *hotKey >= 0 {
 			r = rand.Intn(100)
-			if r < *conflicts {
+			if r < *hotKey {
 				karray[i] = 42
 			} else {
 				karray[i] = int64(43 + i)
@@ -323,3 +321,4 @@ func waitReplies(readers []*bufio.Reader, leader int, n int, done chan bool) {
 	}
 	done <- e
 }
+*/
