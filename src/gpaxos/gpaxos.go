@@ -218,7 +218,7 @@ func (r *Replica) replyPrepare(reply *gpaxosproto.PrepareReply, w *bufio.Writer)
 func (r *Replica) send1b(msg *gpaxosproto.M_1b, w *bufio.Writer) {
 	w.WriteByte(gpaxosproto.M1B)
 	msg.Marshal(w)
-	dummy := state.Command{0, 0, 0, nil}
+	dummy := state.Command{0, 0, 0}
 	for _, cid := range msg.Cstruct {
 		if cmd, present := r.commands[cid]; present {
 			cmd.Marshal(w)
@@ -841,7 +841,7 @@ func (r *Replica) learn(getLub bool) (conflict bool, glb []int32, lub []int32) {
 					log.Println("cs[j] is nil")
 					return false, nil, nil
 				}
-				if !state.Conflict(crtCmd, r.commands[cs[j]]) {
+				if !state.CONFLICT_FUNC(crtCmd, r.commands[cs[j]]) {
 					continue
 				}
 				n.outEdges[cs[j]] = n.outEdges[cs[j]] + 1

@@ -466,7 +466,7 @@ func (r *Replica) handlePrepare(prepare *menciusproto.Prepare) {
 			-1,
 			FALSE,
 			0,
-			state.Command{state.NONE, 0, 0, nil}})
+			state.Command{0, 0, 0}})
 
 		r.instanceSpace[prepare.Instance] = &Instance{false,
 			0,
@@ -480,7 +480,7 @@ func (r *Replica) handlePrepare(prepare *menciusproto.Prepare) {
 			ok = FALSE
 		}
 		if inst.command == nil {
-			inst.command = &state.Command{state.NONE, 0, 0, nil}
+			inst.command = &state.Command{0, 0, 0}
 		}
 		skipped := FALSE
 		if inst.skipped {
@@ -850,7 +850,7 @@ func (r *Replica) executeCommands() {
 				time.Sleep(1000 * 1000)
 			}
 			confInst, present := conflicts[inst.command.K]
-			if present && confInst < i && r.instanceSpace[confInst].status != EXECUTED && state.Conflict(r.instanceSpace[confInst].command, inst.command) {
+			if present && confInst < i && r.instanceSpace[confInst].status != EXECUTED && state.CONFLICT_FUNC(r.instanceSpace[confInst].command, inst.command) {
 				break
 			}
 
@@ -885,7 +885,7 @@ func (r *Replica) forceCommit() {
 		if r.instanceSpace[problemInstance] == nil {
 			r.instanceSpace[problemInstance] = &Instance{true,
 				NB_INST_TO_SKIP,
-				&state.Command{state.NONE, 0, 0, nil},
+				&state.Command{0, 0, 0},
 				r.makeUniqueBallot(1),
 				PREPARING,
 				&LeaderBookkeeping{nil, 0, 0, 0, 0}}

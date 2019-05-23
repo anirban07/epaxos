@@ -1,9 +1,7 @@
 package main
-/*
 
 import (
 	"bufio"
-	"dlog"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -51,14 +49,16 @@ type Statistics struct {
 }
 
 func main() {
+	state.CONFLICT_FUNC = inventoryConflict
+	state.EXECUTE_FUNC = inventoryExecute
 	flag.Parse()
 
 	runtime.GOMAXPROCS(*procs)
 
 	randObj := rand.New(rand.NewSource(42))
-	zipf := rand.NewZipf(randObj, *s, *v, uint64(*reqsNb / *rounds + *eps))
+	zipf := rand.NewZipf(randObj, *s, *v, uint64(*reqsNb / *rounds))
 
-	if *conflicts > 100 {
+	if *hotKey > 100 {
 		log.Fatalf("Conflicts percentage must be between 0 and 100.\n")
 	}
 
@@ -80,15 +80,15 @@ func main() {
 
 	// This array contains the ids of the replicas to which 
 	// the requests in 1 round will be sent
-	rarray = make([]int, *reqsNb / *rounds + *eps)
+	rarray = make([]int, *reqsNb / *rounds)
 	// This array contains which key the request will touch
 	// The key is 42 for a conflict
-	karray := make([]int64, *reqsNb / *rounds + *eps)
+	karray := make([]int64, *reqsNb / *rounds)
 	// Boolean array indicating if a request is a PUT request or not
-	put := make([]bool, *reqsNb / *rounds + *eps)
+	put := make([]bool, *reqsNb / *rounds)
 	// Number of requests sent to the corresponding replicas
 	perReplicaCount := make([]int, N)
-	test := make([]int, *reqsNb / *rounds + *eps)
+	test := make([]int, *reqsNb / *rounds)
 
 	for i := 0; i < len(rarray); i++ {
 		r := rand.Intn(N)
@@ -116,11 +116,11 @@ func main() {
 			test[karray[i]]++
 		}
 	}
-	if *conflicts >= 0 {
+
+	if *hotKey >= 0 {
 		fmt.Println("Uniform distribution")
 	} else {
 		fmt.Println("Zipfian distribution:")
-		//fmt.Println(test[0:100])
 	}
 
 	for i := 0; i < N; i++ {
@@ -134,27 +134,18 @@ func main() {
 	}
 
 	successful = make([]int, N)
-	leader := 0
-
-	if *noLeader == false {
-		reply := new(masterproto.GetLeaderReply)
-		if err = master.Call("Master.GetLeader", new(masterproto.GetLeaderArgs), reply); err != nil {
-			log.Fatalf("Error making the GetLeader RPC\n")
-		}
-		leader = reply.LeaderId
-		log.Printf("The leader is replica %d\n", leader)
-	}
-
-	var id int32 = 0
-	done := make(chan bool, N)
-	args := genericsmrproto.Propose{id, state.Command{state.PUT, 0, 0, nil}, 0}
+	//leader := 0
+	//var id int32 = 0
+	//done := make(chan bool, N)
+	//args := genericsmrproto.Propose{id, state.Command{INCREMENT, 0, 0}, 0}
 
 	before_total := time.Now()
 
-	startTimes = make([]time.Time, *reqsNb + (*eps * *rounds))
-	latencies = make([]time.Duration, *reqsNb + (*eps * *rounds))
-	OKrsp = make([]bool, *reqsNb + (*eps * *rounds))
+	startTimes = make([]time.Time, *reqsNb)
+	latencies = make([]time.Duration, *reqsNb)
+	OKrsp = make([]bool, *reqsNb)
 	
+	/*
 	for j := 0; j < *rounds; j++ {
 
 		n := *reqsNb / *rounds
@@ -247,16 +238,17 @@ func main() {
 			}
 		}
 	}
+	*/
 
 	after_total := time.Now()
 	fmt.Printf("Test took %v\n", after_total.Sub(before_total))
 	avg := 0.0
-	latency_nanos := make([]int64, *reqsNb + (*eps * *rounds))
+	latency_nanos := make([]int64, *reqsNb)
 	for i, latency := range latencies {
 		avg += latency.Seconds()
 		latency_nanos[i] = latency.Nanoseconds()
-		// fmt.Printf("%d, ", latency.Nanoseconds())
 	}
+
 	fmt.Println()
 	avg = avg * 1000.0 / float64(len(latencies))
 	fmt.Printf("Average latency %fms\n", avg)
@@ -265,7 +257,7 @@ func main() {
 		ReqsNb: *reqsNb,
 		Writes: *writes,
 		Rounds: *rounds,
-		Conflicts: *conflicts,
+		Conflicts: *hotKey,
 		LatenciesNano: latency_nanos,
 	}
 
@@ -274,22 +266,21 @@ func main() {
 		fmt.Println(err)
 		return
 	}
+
 	filename := "stats_" + strconv.FormatInt(time.Now().Unix(), 10)
 	ioutil.WriteFile(filename, statsBytes, 0644)
-
-
 	s := 0
 	for _, succ := range successful {
 		s += succ
 	}
 
 	fmt.Printf("Successful: %d\n", s)
-
 	for _, client := range servers {
 		if client != nil {
 			client.Close()
 		}
 	}
+
 	master.Close()
 }
 
@@ -303,13 +294,14 @@ func waitReplies(readers []*bufio.Reader, leader int, n int, done chan bool) {
 			e = true
 			continue
 		}
-		//fmt.Println(reply.Value)
+
 		if *check {
 			if rsp[reply.CommandId] {
 				fmt.Println("Duplicate reply", reply.CommandId)
 			}
 			rsp[reply.CommandId] = true
 		}
+
 		if reply.OK != 0 {
 			if !OKrsp[reply.CommandId] {
 				OKrsp[reply.CommandId] = true
@@ -319,6 +311,6 @@ func waitReplies(readers []*bufio.Reader, leader int, n int, done chan bool) {
 			successful[leader]++
 		}
 	}
+
 	done <- e
 }
-*/
