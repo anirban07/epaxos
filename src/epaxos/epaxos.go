@@ -118,9 +118,9 @@ type LeaderBookkeeping struct {
 	tpaOKs            int
 }
 
-func NewReplica(id int, peerAddrList []string, thrifty bool, exec bool, dreply bool, beacon bool, durable bool) *Replica {
+func NewReplica(id int, peerAddrList []string, thrifty bool, exec bool, dreply bool, beacon bool, durable bool, app state.Application) *Replica {
 	r := &Replica{
-		genericsmr.NewReplica(id, peerAddrList, thrifty, exec, dreply),
+		genericsmr.NewReplica(id, peerAddrList, thrifty, exec, dreply, app),
 		make(chan fastrpc.Serializable, genericsmr.CHAN_BUFFER_SIZE),
 		make(chan fastrpc.Serializable, genericsmr.CHAN_BUFFER_SIZE),
 		make(chan fastrpc.Serializable, genericsmr.CHAN_BUFFER_SIZE),
@@ -415,6 +415,7 @@ func (r *Replica) run() {
 		case <-r.OnClientConnect:
 			log.Printf("weird %d; conflicted %d; slow %d; happy %d\n", weird, conflicted, slow, happy)
 			weird, conflicted, slow, happy = 0, 0, 0, 0
+			log.Printf("State: %v\n", r.State)
 
 		case iid := <-r.instancesToRecover:
 			r.startRecoveryForInstance(iid.replica, iid.instance)

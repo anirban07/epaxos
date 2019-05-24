@@ -67,7 +67,7 @@ type Replica struct {
 	OnClientConnect chan bool
 }
 
-func NewReplica(id int, peerAddrList []string, thrifty bool, exec bool, dreply bool) *Replica {
+func NewReplica(id int, peerAddrList []string, thrifty bool, exec bool, dreply bool, app state.Application) *Replica {
 	r := &Replica{
 		len(peerAddrList),
 		int32(id),
@@ -77,7 +77,7 @@ func NewReplica(id int, peerAddrList []string, thrifty bool, exec bool, dreply b
 		make([]*bufio.Writer, len(peerAddrList)),
 		make([]bool, len(peerAddrList)),
 		nil,
-		state.InitState(),
+		state.InitState(app),
 		make(chan *Propose, CHAN_BUFFER_SIZE),
 		make(chan *Beacon, CHAN_BUFFER_SIZE),
 		false,

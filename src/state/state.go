@@ -4,6 +4,7 @@ import (
 	//"fmt"
 	//"code.google.com/p/leveldb-go/leveldb"
 	//"encoding/binary"
+	"log"
 )
 
 type Operation uint8
@@ -16,17 +17,43 @@ const (
 	FAST_READ
 )
 
+type Application uint8
+const (
+	DEFAULT Application = iota
+	INVENTORY
+	FACEBOOK
+)
+
 type Key int64
 type Value int64
 const NIL Value = 0
 
-// TODO: Make function pointer part of the struct
 type State struct {
 	Store map[Key]Value
+	FBStore map[Key][]Value
 }
 
-func InitState() *State {
-	return &State{make(map[Key]Value)}
+var CONFLICT_FUNC ConflictFunction
+var EXECUTE_FUNC ExecuteFunction
+
+func InitState(app Application) *State {
+	switch app {
+		case DEFAULT:
+			log.Printf("Using Default Application")
+			CONFLICT_FUNC = DefaultConflict
+			EXECUTE_FUNC = DefaultExecute
+			break
+		case INVENTORY:
+			log.Printf("Using Inventory Application")
+			CONFLICT_FUNC = DefaultConflict
+			EXECUTE_FUNC = InventoryExecute
+			break
+		case FACEBOOK:
+			log.Printf("Using Facebook Application")
+			break
+	}
+
+	return &State{make(map[Key]Value), make(map[Key][]Value)}
 }
 
 type ConflictFunction func(gamma *Command, delta *Command) (bool)
@@ -38,8 +65,6 @@ type Command struct {
 }
 
 // Set these to the functions you want to run
-var CONFLICT_FUNC ConflictFunction = DefaultConflict
-var EXECUTE_FUNC ExecuteFunction = InventoryExecute
 func ConflictBatch(batch1 []Command, batch2 []Command) bool {
 	for i := 0; i < len(batch1); i++ {
 		for j := 0; j < len(batch2); j++ {
