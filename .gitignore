@@ -1,2 +1,3 @@
 stats_*
 bin/*
+src/server/stable-store-replica*

@@ -2,6 +2,7 @@ package main
 
 import (
 	"bufio"
+	"dlog"
 	"encoding/json"
 	"flag"
 	"fmt"
@@ -14,7 +15,6 @@ import (
 	"net/rpc"
 	"runtime"
 	"state"
-	"strconv"
 	"time"
 )
 
@@ -46,18 +46,16 @@ type Statistics struct {
 	Rounds int
 	Conflicts int
 	LatenciesNano []int64
+	IncrementLatencies []int64
+	ReadLatencies []int64
+	FastReadLatencies []int64
 }
 
 func main() {
-	state.CONFLICT_FUNC = inventoryConflict
-	state.EXECUTE_FUNC = inventoryExecute
 	flag.Parse()
-
 	runtime.GOMAXPROCS(*procs)
-
 	randObj := rand.New(rand.NewSource(42))
 	zipf := rand.NewZipf(randObj, *s, *v, uint64(*reqsNb / *rounds))
-
 	if *hotKey > 100 {
 		log.Fatalf("Conflicts percentage must be between 0 and 100.\n")
 	}
@@ -77,7 +75,6 @@ func main() {
 	servers := make([]net.Conn, N)
 	readers := make([]*bufio.Reader, N)
 	writers := make([]*bufio.Writer, N)
-
 	// This array contains the ids of the replicas to which 
 	// the requests in 1 round will be sent
 	rarray = make([]int, *reqsNb / *rounds)
@@ -86,10 +83,11 @@ func main() {
 	karray := make([]int64, *reqsNb / *rounds)
 	// Boolean array indicating if a request is a PUT request or not
 	put := make([]bool, *reqsNb / *rounds)
+	// Operation array indicating what each request operation was
+	ops := make([]state.Operation, *reqsNb / *rounds)
 	// Number of requests sent to the corresponding replicas
 	perReplicaCount := make([]int, N)
 	test := make([]int, *reqsNb / *rounds)
-
 	for i := 0; i < len(rarray); i++ {
 		r := rand.Intn(N)
 		rarray[i] = r
@@ -105,12 +103,9 @@ func main() {
 			} else {
 				karray[i] = int64(43 + i)
 			}
+
 			r = rand.Intn(100)
-			if r < *writes {
-				put[i] = true
-			} else {
-				put[i] = false
-			}
+			put[i] = r < *writes
 		} else {
 			karray[i] = int64(zipf.Uint64())
 			test[karray[i]]++
@@ -118,7 +113,7 @@ func main() {
 	}
 
 	if *hotKey >= 0 {
-		fmt.Println("Uniform distribution")
+		fmt.Println("Uniform distribution:")
 	} else {
 		fmt.Println("Zipfian distribution:")
 	}
@@ -129,27 +124,21 @@ func main() {
 		if err != nil {
 			log.Printf("Error connecting to replica %d\n", i)
 		}
+
 		readers[i] = bufio.NewReader(servers[i])
 		writers[i] = bufio.NewWriter(servers[i])
 	}
 
 	successful = make([]int, N)
-	//leader := 0
-	//var id int32 = 0
-	//done := make(chan bool, N)
-	//args := genericsmrproto.Propose{id, state.Command{INCREMENT, 0, 0}, 0}
-
+	var id int32 = 0
+	done := make(chan bool, N)
+	args := genericsmrproto.Propose{id, state.Command{state.INCREMENT, 0, 0}, 0}
 	before_total := time.Now()
-
 	startTimes = make([]time.Time, *reqsNb)
 	latencies = make([]time.Duration, *reqsNb)
 	OKrsp = make([]bool, *reqsNb)
-	
-	/*
 	for j := 0; j < *rounds; j++ {
-
 		n := *reqsNb / *rounds
-
 		if *check {
 			rsp = make([]bool, n)
 			for j := 0; j < n; j++ {
@@ -157,68 +146,53 @@ func main() {
 			}
 		}
 
-		if *noLeader {
-			for i := 0; i < N; i++ {
-				go waitReplies(readers, i, perReplicaCount[i], done)
-			}
-		} else {
-			go waitReplies(readers, leader, n, done)
+		for i := 0; i < N; i++ {
+			go waitReplies(readers, i, perReplicaCount[i], done)
 		}
 
 		before := time.Now()
-
-		for i := 0; i < n+*eps; i++ {
+		for i := 0; i < n; i++ {
 			dlog.Printf("Sending proposal %d\n", id)
 			args.CommandId = id
 			if put[i] {
-				args.Command.Op = state.PUT
+				args.Command.Op = state.INCREMENT
 			} else {
-				args.Command.Op = state.GET
+				r := rand.Intn(100)
+				if r < *fastReads {
+					args.Command.Op = state.FAST_READ
+
+				} else {
+					args.Command.Op = state.READ
+				}
 			}
+
+			ops[i] = args.Command.Op
 			args.Command.K = state.Key(karray[i])
 			args.Command.V = state.Value(i)
-			//args.Timestamp = time.Now().UnixNano()
-			if !*fast {
-				if *noLeader {
-					leader = rarray[i]
-				}
-				writers[leader].WriteByte(genericsmrproto.PROPOSE)
-				args.Marshal(writers[leader])
-				startTimes[id] = time.Now()
-			} else {
-				//send to everyone
-				for rep := 0; rep < N; rep++ {
-					writers[rep].WriteByte(genericsmrproto.PROPOSE)
-					args.Marshal(writers[rep])
-					writers[rep].Flush()
-				}
-			}
-			//fmt.Println("Sent", id)
+			leader := rarray[i]
+			writers[leader].WriteByte(genericsmrproto.PROPOSE)
+			args.Marshal(writers[leader])
+			startTimes[id] = time.Now()
 			id++
-			if i%100 == 0 {
+			if i % 100 == 0 {
 				for i := 0; i < N; i++ {
 					writers[i].Flush()
 				}
 			}
 		}
+
 		for i := 0; i < N; i++ {
 			writers[i].Flush()
 		}
 
 		err := false
-		if *noLeader {
-			for i := 0; i < N; i++ {
-				e := <-done
-				err = e || err
-			}
-		} else {
-			err = <-done
+		for i := 0; i < N; i++ {
+			e := <-done
+			err = e || err
 		}
 
 		after := time.Now()
-
 		fmt.Printf("Round took %v\n", after.Sub(before))
-
 		if *check {
 			for j := 0; j < n; j++ {
 				if !rsp[j] {
@@ -228,25 +202,31 @@ func main() {
 		}
 
 		if err {
-			if *noLeader {
-				N = N - 1
-			} else {
-				reply := new(masterproto.GetLeaderReply)
-				master.Call("Master.GetLeader", new(masterproto.GetLeaderArgs), reply)
-				leader = reply.LeaderId
-				log.Printf("New leader is replica %d\n", leader)
-			}
+			N = N - 1
 		}
 	}
-	*/
 
 	after_total := time.Now()
 	fmt.Printf("Test took %v\n", after_total.Sub(before_total))
 	avg := 0.0
 	latency_nanos := make([]int64, *reqsNb)
+	var readLatencies []int64
+	var fastReadLatencies []int64
+	var incrementLatencies []int64
 	for i, latency := range latencies {
 		avg += latency.Seconds()
 		latency_nanos[i] = latency.Nanoseconds()
+		switch ops[i] {
+			case state.INCREMENT:
+				incrementLatencies = append(incrementLatencies, latency_nanos[i])
+				break
+			case state.READ:
+				readLatencies = append(readLatencies, latency_nanos[i])
+				break
+			case state.FAST_READ:
+				fastReadLatencies = append(fastReadLatencies, latency_nanos[i])
+				break
+		}
 	}
 
 	fmt.Println()
@@ -259,6 +239,9 @@ func main() {
 		Rounds: *rounds,
 		Conflicts: *hotKey,
 		LatenciesNano: latency_nanos,
+		IncrementLatencies: incrementLatencies,
+		ReadLatencies: readLatencies,
+		FastReadLatencies: fastReadLatencies,
 	}
 
 	statsBytes, err := json.Marshal(stats)
@@ -267,7 +250,13 @@ func main() {
 		return
 	}
 
-	filename := "stats_" + strconv.FormatInt(time.Now().Unix(), 10)
+	var filename string
+	if N == 3 {
+		filename = fmt.Sprintf("three_reps/stats_%dreq_%d%%writes_%d%%fastreads_%d%%conflicts", *reqsNb, *writes, *fastReads, *hotKey)
+	} else {
+		filename = fmt.Sprintf("five_reps/stats_%dreq_%d%%writes_%d%%fastreads_%d%%conflicts", *reqsNb, *writes, *fastReads, *hotKey)
+	}
+
 	ioutil.WriteFile(filename, statsBytes, 0644)
 	s := 0
 	for _, succ := range successful {
@@ -286,7 +275,6 @@ func main() {
 
 func waitReplies(readers []*bufio.Reader, leader int, n int, done chan bool) {
 	e := false
-
 	reply := new(genericsmrproto.ProposeReplyTS)
 	for i := 0; i < n; i++ {
 		if err := reply.Unmarshal(readers[leader]); err != nil {
@@ -299,6 +287,7 @@ func waitReplies(readers []*bufio.Reader, leader int, n int, done chan bool) {
 			if rsp[reply.CommandId] {
 				fmt.Println("Duplicate reply", reply.CommandId)
 			}
+
 			rsp[reply.CommandId] = true
 		}
 

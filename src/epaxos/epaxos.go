@@ -698,7 +698,6 @@ func (r *Replica) updateCommitted(replica int32) {
 }
 
 func (r *Replica) updateConflicts(cmds []state.Command, replica int32, instance int32, seq int32) {
-	dlog.Printf("Before Conflicts: seq: %d r.conflicts: %v instance: %d myId: %d calledId: %d\n", seq, r.conflicts, instance, r.Id, replica);
 	for i := 0; i < len(cmds); i++ {
 		if d, present := r.conflicts[replica][cmds[i].K]; present {
 			if d < instance {
@@ -715,11 +714,9 @@ func (r *Replica) updateConflicts(cmds []state.Command, replica int32, instance 
 			r.maxSeqPerKey[cmds[i].K] = seq
 		}
 	}
-	dlog.Printf("After Conflicts: seq: %d r.conflicts: %v instance: %d myId: %d calledId: %d\n", seq, r.conflicts, instance, r.Id, replica);
 }
 
 func (r *Replica) updateAttributes(cmds []state.Command, seq int32, deps [DS]int32, replica int32, instance int32) (int32, [DS]int32, bool) {
-	dlog.Printf("Before Attr: deps: %v seq: %d r.conflicts: %v instance: %d myId: %d calledId: %d\n", deps, seq, r.conflicts, instance, r.Id, replica);
 	changed := false
 	for q := 0; q < r.N; q++ {
 		if r.Id != replica && int32(q) == replica {
@@ -746,7 +743,6 @@ func (r *Replica) updateAttributes(cmds []state.Command, seq int32, deps [DS]int
 			}
 		}
 	}
-	dlog.Printf("After Attr: deps: %v seq: %d r.conflicts: %v instance: %d myId: %d calledId: %d\n", deps, seq, r.conflicts, instance, r.Id, replica);
 	return seq, deps, changed
 }
 
@@ -838,7 +834,6 @@ func (r *Replica) startPhase1(replica int32, instance int32, ballot int32, propo
 	}
 
 	seq, deps, _ = r.updateAttributes(cmds, seq, deps, replica, instance)
-	dlog.Printf("Phase 1 Attr: deps: %v seq: %d r.conflicts: %v instance: %d\n", deps, seq, r.conflicts, instance);
 	r.InstanceSpace[r.Id][instance] = &Instance{
 		cmds,
 		ballot,
@@ -849,7 +844,6 @@ func (r *Replica) startPhase1(replica int32, instance int32, ballot int32, propo
 		nil}
 
 	r.updateConflicts(cmds, r.Id, instance, seq)
-	dlog.Printf("Phase 1 After: deps: %v seq: %d r.conflicts: %v instance: %d\n", deps, seq, r.conflicts, instance);
 	if seq >= r.maxSeq {
 		r.maxSeq = seq + 1
 	}

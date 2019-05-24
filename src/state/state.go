@@ -7,7 +7,6 @@ import (
 )
 
 type Operation uint8
-
 const (
 	NONE Operation = iota
 	PUT
@@ -21,6 +20,7 @@ type Key int64
 type Value int64
 const NIL Value = 0
 
+// TODO: Make function pointer part of the struct
 type State struct {
 	Store map[Key]Value
 }
@@ -31,7 +31,6 @@ func InitState() *State {
 
 type ConflictFunction func(gamma *Command, delta *Command) (bool)
 type ExecuteFunction func(gamma *Command, st *State) (Value)
-
 type Command struct {
 	Op Operation
 	K Key
@@ -40,8 +39,7 @@ type Command struct {
 
 // Set these to the functions you want to run
 var CONFLICT_FUNC ConflictFunction = DefaultConflict
-var EXECUTE_FUNC ExecuteFunction = DefaultExecute
-
+var EXECUTE_FUNC ExecuteFunction = InventoryExecute
 func ConflictBatch(batch1 []Command, batch2 []Command) bool {
 	for i := 0; i < len(batch1); i++ {
 		for j := 0; j < len(batch2); j++ {
@@ -59,7 +57,7 @@ func (c *Command) Execute(st *State) Value {
 
 func DefaultConflict(gamma *Command, delta *Command) bool {
 	if gamma.K == delta.K {
-		if gamma.Op == PUT || delta.Op == PUT {
+		if gamma.Op == INCREMENT || delta.Op == INCREMENT {
 			return true
 		}
 	}
@@ -84,11 +82,12 @@ func DefaultExecute(gamma *Command, st *State) Value {
 	return NIL
 }
 
-// Conflicts only on strong reads (GETs) on the same key
-// All other operations commute
-func InventoryConflict(gamma Command, delta Command) bool {
+// Conflicts only when a read and an increment are occuring on the same
+// key
+func InventoryConflict(gamma *Command, delta *Command) bool {
 	if gamma.K == delta.K {
-		if gamma.Op == READ || delta.Op == READ {
+		if (gamma.Op == READ && delta.Op == INCREMENT)  || 
+			 (gamma.Op == INCREMENT && delta.Op == READ) {
 			return true
 		}
 	}
@@ -96,7 +95,7 @@ func InventoryConflict(gamma Command, delta Command) bool {
 	return false
 }
 
-func InventoryExecute(gamma Command, st State) Value {
+func InventoryExecute(gamma *Command, st *State) Value {
 	switch gamma.Op {
 		case INCREMENT:
 			if val, present := st.Store[gamma.K]; present {
