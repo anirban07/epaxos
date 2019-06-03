@@ -68,6 +68,7 @@ type Replica struct {
 	ExecedUpTo            []int32       // instance up to which all commands have been executed (including iteslf)
 	exec                  *Exec
 	conflicts             []map[state.Key]int32
+	smartConflicts        []map[state.Operation]map[state.Key]int32
 	maxSeqPerKey          map[state.Key]int32
 	maxSeq                int32
 	latestCPReplica       int32
@@ -139,6 +140,7 @@ func NewReplica(id int, peerAddrList []string, thrifty bool, exec bool, dreply b
 		make([]int32, len(peerAddrList)),
 		nil,
 		make([]map[state.Key]int32, len(peerAddrList)),
+		make([]map[state.Operation]map[state.Key]int32, len(peerAddrList)),
 		make(map[state.Key]int32),
 		0,
 		0,
@@ -154,6 +156,7 @@ func NewReplica(id int, peerAddrList []string, thrifty bool, exec bool, dreply b
 		r.crtInstance[i] = 0
 		r.ExecedUpTo[i] = -1
 		r.conflicts[i] = make(map[state.Key]int32, HT_INIT_SIZE)
+		r.smartConflicts[i] = make(map[state.Operation]map[state.Key]int32, HT_INIT_SIZE)
 	}
 
 	for bf_PT = 1; math.Pow(2, float64(bf_PT))/float64(MAX_BATCH) < BF_M_N; {
@@ -686,6 +689,7 @@ func (r *Replica) bcastCommit(replica int32, instance int32, cmds []state.Comman
 func (r *Replica) clearHashtables() {
 	for q := 0; q < r.N; q++ {
 		r.conflicts[q] = make(map[state.Key]int32, HT_INIT_SIZE)
+		r.smartConflicts[q] = make(map[state.Operation]map[state.Key]int32, HT_INIT_SIZE)
 	}
 }
 
@@ -697,6 +701,28 @@ func (r *Replica) updateCommitted(replica int32) {
 	}
 }
 
+func (r *Replica) updateSmartConflicts(cmds []state.Command, replica int32, instance int32, seq int32) {
+	for i := 0; i < len(cmds); i++ {
+		cmd := cmds[i]
+		if ops, opTypePresent := r.smartConflicts[replica][cmd.Op]; opTypePresent {
+			if d, keyPresent := ops[cmd.K]; keyPresent {
+				if d < instance {
+					ops[cmd.K] = instance
+				}
+			} else {
+				ops[cmd.K] = instance
+			}
+		}
+		if s, present := r.maxSeqPerKey[cmds[i].K]; present {
+			if s < seq {
+				r.maxSeqPerKey[cmds[i].K] = seq
+			}
+		} else {
+			r.maxSeqPerKey[cmds[i].K] = seq
+		}
+	}
+}
+
 func (r *Replica) updateConflicts(cmds []state.Command, replica int32, instance int32, seq int32) {
 	for i := 0; i < len(cmds); i++ {
 		if d, present := r.conflicts[replica][cmds[i].K]; present {
@@ -704,8 +730,8 @@ func (r *Replica) updateConflicts(cmds []state.Command, replica int32, instance 
 				r.conflicts[replica][cmds[i].K] = instance
 			}
 		} else {
-            r.conflicts[replica][cmds[i].K] = instance
-        }
+			r.conflicts[replica][cmds[i].K] = instance
+		}
 		if s, present := r.maxSeqPerKey[cmds[i].K]; present {
 			if s < seq {
 				r.maxSeqPerKey[cmds[i].K] = seq
@@ -723,14 +749,19 @@ func (r *Replica) updateAttributes(cmds []state.Command, seq int32, deps [DS]int
 			continue
 		}
 		for i := 0; i < len(cmds); i++ {
-			if d, present := (r.conflicts[q])[cmds[i].K]; present {
-				if d > deps[q] {
-					deps[q] = d
-					if seq <= r.InstanceSpace[q][d].Seq {
-						seq = r.InstanceSpace[q][d].Seq + 1
+			cmd := cmds[i]
+			for opType, ops := range r.smartConflicts[replica] {
+				if !state.OP_CONFLICT_FUNC(cmd.Op, opType) {
+					continue
+				}
+				if d, present := ops[cmd.K]; present {
+					if d > deps[q] {
+						deps[q] = d
+						if seq <= r.InstanceSpace[q][d].Seq {
+							seq = r.InstanceSpace[q][d].Seq + 1
+						}
+						changed = true
 					}
-					changed = true
-					break
 				}
 			}
 		}
@@ -843,7 +874,8 @@ func (r *Replica) startPhase1(replica int32, instance int32, ballot int32, propo
 		&LeaderBookkeeping{proposals, 0, 0, true, 0, 0, 0, deps, []int32{-1, -1, -1, -1, -1}, nil, false, false, nil, 0}, 0, 0,
 		nil}
 
-	r.updateConflicts(cmds, r.Id, instance, seq)
+	// r.updateConflicts(cmds, r.Id, instance, seq)
+	r.updateSmartConflicts(cmds, r.Id, instance, seq)
 	if seq >= r.maxSeq {
 		r.maxSeq = seq + 1
 	}
@@ -904,7 +936,8 @@ func (r *Replica) handlePreAccept(preAccept *epaxosproto.PreAccept) {
 		//reordered handling of commit/accept and pre-accept
 		if inst.Cmds == nil {
 			r.InstanceSpace[preAccept.LeaderId][preAccept.Instance].Cmds = preAccept.Command
-			r.updateConflicts(preAccept.Command, preAccept.Replica, preAccept.Instance, preAccept.Seq)
+			// r.updateConflicts(preAccept.Command, preAccept.Replica, preAccept.Instance, preAccept.Seq)
+			r.updateSmartConflicts(preAccept.Command, preAccept.Replica, preAccept.Instance, preAccept.Seq)
 			//r.InstanceSpace[preAccept.LeaderId][preAccept.Instance].bfilter = bfFromCommands(preAccept.Command)
 		}
 		r.recordCommands(preAccept.Command)
@@ -960,7 +993,8 @@ func (r *Replica) handlePreAccept(preAccept *epaxosproto.PreAccept) {
 			nil}
 	}
 
-	r.updateConflicts(preAccept.Command, preAccept.Replica, preAccept.Instance, preAccept.Seq)
+	// r.updateConflicts(preAccept.Command, preAccept.Replica, preAccept.Instance, preAccept.Seq)
+	r.updateSmartConflicts(preAccept.Command, preAccept.Replica, preAccept.Instance, preAccept.Seq)
 
 	r.recordInstanceMetadata(r.InstanceSpace[preAccept.Replica][preAccept.Instance])
 	r.recordCommands(preAccept.Command)
@@ -1287,7 +1321,8 @@ func (r *Replica) handleCommit(commit *epaxosproto.Commit) {
 			0,
 			0,
 			nil}
-		r.updateConflicts(commit.Command, commit.Replica, commit.Instance, commit.Seq)
+		// r.updateConflicts(commit.Command, commit.Replica, commit.Instance, commit.Seq)
+		r.updateSmartConflicts(commit.Command, commit.Replica, commit.Instance, commit.Seq)
 
 		if len(commit.Command) == 0 {
 			//checkpoint
