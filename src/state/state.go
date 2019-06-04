@@ -40,8 +40,8 @@ type Command struct {
 
 // Set these to the functions you want to run
 var CONFLICT_FUNC ConflictFunction = DefaultConflict
-var EXECUTE_FUNC ExecuteFunction = InventoryExecute
-var OP_CONFLICT_FUNC OperationConflict = InventoryOperationConflict
+var EXECUTE_FUNC ExecuteFunction = DefaultExecute
+var OP_CONFLICT_FUNC OperationConflict = DefaultOperationConflict
 
 func ConflictBatch(batch1 []Command, batch2 []Command) bool {
 	for i := 0; i < len(batch1); i++ {
@@ -59,7 +59,7 @@ func (c *Command) Execute(st *State) Value {
 }
 
 func DefaultOperationConflict(op1 Operation, op2 Operation) bool {
-	return op1 == INCREMENT || op2 == INCREMENT
+	return true
 }
 
 func DefaultConflict(gamma *Command, delta *Command) bool {

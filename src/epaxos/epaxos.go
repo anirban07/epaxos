@@ -38,6 +38,15 @@ const CHECKPOINT_PERIOD = 10000
 var cpMarker []state.Command
 var cpcounter = 0
 
+var ALL_OPS = []state.Operation {
+	state.NONE,
+	state.PUT,
+	state.GET,
+	state.INCREMENT,
+	state.READ,
+	state.FAST_READ,
+}
+
 type Replica struct {
 	*genericsmr.Replica
 	prepareChan           chan fastrpc.Serializable
@@ -157,6 +166,9 @@ func NewReplica(id int, peerAddrList []string, thrifty bool, exec bool, dreply b
 		r.ExecedUpTo[i] = -1
 		r.conflicts[i] = make(map[state.Key]int32, HT_INIT_SIZE)
 		r.smartConflicts[i] = make(map[state.Operation]map[state.Key]int32, HT_INIT_SIZE)
+		for _, op := range ALL_OPS {
+			r.smartConflicts[i][op] = make(map[state.Key]int32)
+		}
 	}
 
 	for bf_PT = 1; math.Pow(2, float64(bf_PT))/float64(MAX_BATCH) < BF_M_N; {
@@ -417,6 +429,7 @@ func (r *Replica) run() {
 			break
 		case <-r.OnClientConnect:
 			log.Printf("weird %d; conflicted %d; slow %d; happy %d\n", weird, conflicted, slow, happy)
+			log.Printf("%v\n", r.State)
 			weird, conflicted, slow, happy = 0, 0, 0, 0
 
 		case iid := <-r.instancesToRecover:
@@ -690,6 +703,9 @@ func (r *Replica) clearHashtables() {
 	for q := 0; q < r.N; q++ {
 		r.conflicts[q] = make(map[state.Key]int32, HT_INIT_SIZE)
 		r.smartConflicts[q] = make(map[state.Operation]map[state.Key]int32, HT_INIT_SIZE)
+		for _, op := range ALL_OPS {
+			r.smartConflicts[q][op] = make(map[state.Key]int32)
+		}
 	}
 }
 
@@ -712,6 +728,8 @@ func (r *Replica) updateSmartConflicts(cmds []state.Command, replica int32, inst
 			} else {
 				ops[cmd.K] = instance
 			}
+		} else {
+			r.smartConflicts[replica][cmd.Op][cmd.K] = instance
 		}
 		if s, present := r.maxSeqPerKey[cmds[i].K]; present {
 			if s < seq {
@@ -754,10 +772,11 @@ func (r *Replica) updateAttributes(cmds []state.Command, seq int32, deps [DS]int
 				if !state.OP_CONFLICT_FUNC(cmd.Op, opType) {
 					continue
 				}
+
 				if d, present := ops[cmd.K]; present {
 					if d > deps[q] {
 						deps[q] = d
-						if seq <= r.InstanceSpace[q][d].Seq {
+						if r.InstanceSpace[q][d] != nil && seq <= r.InstanceSpace[q][d].Seq {
 							seq = r.InstanceSpace[q][d].Seq + 1
 						}
 						changed = true
