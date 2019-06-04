@@ -53,6 +53,8 @@ func InitState(app Application) *State {
 			break
 		case FACEBOOK:
 			log.Printf("Using Facebook Application")
+			CONFLICT_FUNC = DefaultConflict
+			EXECUTE_FUNC = FacebookExecute
 			break
 	}
 
@@ -85,7 +87,7 @@ func (c *Command) Execute(st *State) Value {
 
 func DefaultConflict(gamma *Command, delta *Command) bool {
 	if gamma.K == delta.K {
-		if gamma.Op == INCREMENT || delta.Op == INCREMENT {
+		if gamma.Op == LIKE || delta.Op == LIKE || gamma.Op == CREATE || delta.Op == CREATE {
 			return true
 		}
 	}
@@ -164,6 +166,7 @@ func FacebookExecute(gamma *Command, st *State) Value {
 		case CREATE:
 			if _, present := st.FBStore[gamma.K]; !present {
 				st.FBStore[gamma.K] = make(map[Value]bool)
+				st.FBStore[gamma.K][gamma.V] = true
 			}
 			
 			return OK;

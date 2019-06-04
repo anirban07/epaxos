@@ -21,7 +21,7 @@ import (
 var masterAddr *string = flag.String("maddr", "", "Master address. Defaults to localhost")
 var masterPort *int = flag.Int("mport", 7087, "Master port.  Defaults to 7077.")
 var reqsNb *int = flag.Int("q", 5000, "Total number of requests. Defaults to 5000.")
-var writes *int = flag.Int("w", 100, "Percentage of updates (writes). Defaults to 100%.")
+var writes *int = flag.Int("w", 100, "Percentage of updates (likes and posts). Defaults to 100%.")
 var enhanced *bool = flag.Bool("e", false, "Use enhanced conflict detection. Defaults to false.")
 var fastReads *int = flag.Int("fast", 0, "Percentage of total reads that are fast. Defaults to 0%.")
 var rounds *int = flag.Int("r", 1, "Split the total number of requests into this many rounds, and do rounds sequentially. Defaults to 1.")
@@ -32,6 +32,7 @@ var s = flag.Float64("s", 2, "Zipfian s parameter")
 var v = flag.Float64("v", 1, "Zipfian v parameter")
 
 var N int
+var FOLDER = "vanilla/"
 
 var successful []int
 var rarray []int
@@ -53,7 +54,7 @@ type Statistics struct {
 }
 
 // TODO:
-// - Figure out the way keys and operations are decided.
+// - Talk about conflict semantics with Anir.
 func main() {
   flag.Parse()
   runtime.GOMAXPROCS(*procs)
@@ -84,8 +85,6 @@ func main() {
   // This array contains which key the request will touch
   // The key is 42 for a conflict
   karray := make([]int64, *reqsNb / *rounds)
-  // Boolean array indicating if a request is a PUT request or not
-  put := make([]bool, *reqsNb / *rounds)
   // Operation array indicating what each request operation was
   ops := make([]state.Operation, *reqsNb / *rounds)
   // Number of requests sent to the corresponding replicas
@@ -106,9 +105,6 @@ func main() {
       } else {
         karray[i] = int64(43 + i)
       }
-
-      r = rand.Intn(100)
-      put[i] = r < *writes
     } else {
       karray[i] = int64(zipf.Uint64())
       test[karray[i]]++
@@ -157,10 +153,16 @@ func main() {
     for i := 0; i < n; i++ {
       dlog.Printf("Sending proposal %d\n", id)
       args.CommandId = id
-      if put[i] {
-        args.Command.Op = state.INCREMENT
+      r := rand.Intn(100)
+      if r < *writes {
+        r = rand.Intn(2)
+        if r == 1 {
+          args.Command.Op = state.CREATE
+        } else {
+          args.Command.Op = state.LIKE
+        }
       } else {
-        r := rand.Intn(100)
+        r = rand.Intn(100)
         if r < *fastReads {
           args.Command.Op = state.FAST_READ
 
@@ -227,6 +229,12 @@ func main() {
       case state.FAST_READ:
         fastReadLatencies = append(fastReadLatencies, latency_nanos[i])
         break
+      case state.LIKE:
+        likeLatencies = append(likeLatencies, latency_nanos[i])
+        break
+      case state.CREATE:
+        createLatencies = append(createLatencies, latency_nanos[i])
+        break
     }
   }
 
@@ -253,9 +261,9 @@ func main() {
 
   var filename string
   if N == 3 {
-    filename = fmt.Sprintf("three_reps/stats_%dreq_%d%%writes_%d%%fastreads_%d%%conflicts", *reqsNb, *writes, *fastReads, *hotKey)
+    filename = fmt.Sprintf("%sthree_reps/stats_%dreq_%d%%writes_%d%%fastreads_%d%%conflicts", FOLDER, *reqsNb, *writes, *fastReads, *hotKey)
   } else {
-    filename = fmt.Sprintf("five_reps/stats_%dreq_%d%%writes_%d%%fastreads_%d%%conflicts", *reqsNb, *writes, *fastReads, *hotKey)
+    filename = fmt.Sprintf("%sfive_reps/stats_%dreq_%d%%writes_%d%%fastreads_%d%%conflicts", FOLDER, *reqsNb, *writes, *fastReads, *hotKey)
   }
 
   ioutil.WriteFile(filename, statsBytes, 0644)
