@@ -54,7 +54,8 @@ type Statistics struct {
 }
 
 // TODO:
-// - Talk about conflict semantics with Anir.
+// - Talk about conflict semantics with Anir
+// Create posts first, conflicts are reads mixing with posts.
 func main() {
   flag.Parse()
   runtime.GOMAXPROCS(*procs)

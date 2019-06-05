@@ -71,20 +71,25 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 			for e.r.InstanceSpace[q][i] == nil || e.r.InstanceSpace[q][i].Cmds == nil || v.Cmds == nil {
 				time.Sleep(1000 * 1000)
 			}
-			/*        if !state.Conflict(v.Command, e.r.InstanceSpace[q][i].Command) {
-			          continue
-			          }
-			*/
+
 			if e.r.InstanceSpace[q][i].Status == epaxosproto.EXECUTED {
 				continue
 			}
+
 			for e.r.InstanceSpace[q][i].Status != epaxosproto.COMMITTED {
 				time.Sleep(1000 * 1000)
 			}
-			w := e.r.InstanceSpace[q][i]
 
+			// Works because we're only batching 1 command at a time
+			// Idea: Skip through the log entries that don't conflict with the command
+			//       we're trying to execute. Still have to wait on edges that conflict
+			//       that cascade down the chain.
+			if !state.CONFLICT_FUNC(v.Cmds[0], e.r.InstanceSpace[q][i].Cmds[0]) {
+        continue
+      }
+
+			w := e.r.InstanceSpace[q][i]
 			if w.Index == 0 {
-				//e.strongconnect(w, index)
 				if !e.strongconnect(w, index) {
 					for j := l; j < len(stack); j++ {
 						stack[j].Index = 0
@@ -95,7 +100,7 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 				if w.Lowlink < v.Lowlink {
 					v.Lowlink = w.Lowlink
 				}
-			} else { //if e.inStack(w)  //<- probably unnecessary condition, saves a linear search
+			} else {
 				if w.Index < v.Lowlink {
 					v.Lowlink = w.Index
 				}
