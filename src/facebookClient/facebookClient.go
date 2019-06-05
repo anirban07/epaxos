@@ -21,7 +21,7 @@ import (
 var masterAddr *string = flag.String("maddr", "", "Master address. Defaults to localhost")
 var masterPort *int = flag.Int("mport", 7087, "Master port.  Defaults to 7077.")
 var reqsNb *int = flag.Int("q", 5000, "Total number of requests. Defaults to 5000.")
-var writes *int = flag.Int("w", 100, "Percentage of updates (likes and posts). Defaults to 100%.")
+var writes *int = flag.Int("w", 100, "Percentage of updates (likes). Defaults to 100%.")
 var enhanced *bool = flag.Bool("e", false, "Use enhanced conflict detection. Defaults to false.")
 var fastReads *int = flag.Int("fast", 0, "Percentage of total reads that are fast. Defaults to 0%.")
 var rounds *int = flag.Int("r", 1, "Split the total number of requests into this many rounds, and do rounds sequentially. Defaults to 1.")
@@ -47,15 +47,11 @@ type Statistics struct {
   Rounds int
   Conflicts int
   LatenciesNano []int64
-  CreateLatencies []int64
   LikeLatencies []int64
   ReadLatencies []int64
   FastReadLatencies []int64
 }
 
-// TODO:
-// - Talk about conflict semantics with Anir
-// Create posts first, conflicts are reads mixing with posts.
 func main() {
   flag.Parse()
   runtime.GOMAXPROCS(*procs)
@@ -156,17 +152,11 @@ func main() {
       args.CommandId = id
       r := rand.Intn(100)
       if r < *writes {
-        r = rand.Intn(2)
-        if r == 1 {
-          args.Command.Op = state.CREATE
-        } else {
-          args.Command.Op = state.LIKE
-        }
+        args.Command.Op = state.LIKE
       } else {
         r = rand.Intn(100)
         if r < *fastReads {
           args.Command.Op = state.FAST_READ
-
         } else {
           args.Command.Op = state.READ
         }
@@ -219,7 +209,6 @@ func main() {
   var readLatencies []int64
   var fastReadLatencies []int64
   var likeLatencies []int64
-  var createLatencies []int64
   for i, latency := range latencies {
     avg += latency.Seconds()
     latency_nanos[i] = latency.Nanoseconds()
@@ -233,9 +222,6 @@ func main() {
       case state.LIKE:
         likeLatencies = append(likeLatencies, latency_nanos[i])
         break
-      case state.CREATE:
-        createLatencies = append(createLatencies, latency_nanos[i])
-        break
     }
   }
 
@@ -248,7 +234,6 @@ func main() {
     Rounds: *rounds,
     Conflicts: *hotKey,
     LatenciesNano: latency_nanos,
-    CreateLatencies: createLatencies,
     LikeLatencies: likeLatencies,
     ReadLatencies: readLatencies,
     FastReadLatencies: fastReadLatencies,

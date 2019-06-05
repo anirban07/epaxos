@@ -15,7 +15,6 @@ const (
 	INCREMENT
 	READ
 	FAST_READ
-	CREATE
 	LIKE
 )
 
@@ -87,7 +86,7 @@ func (c *Command) Execute(st *State) Value {
 
 func DefaultConflict(gamma *Command, delta *Command) bool {
 	if gamma.K == delta.K {
-		if gamma.Op == LIKE || delta.Op == LIKE || gamma.Op == CREATE || delta.Op == CREATE {
+		if gamma.Op == LIKE || delta.Op == LIKE {
 			return true
 		}
 	}
@@ -151,9 +150,8 @@ func InventoryExecute(gamma *Command, st *State) Value {
 
 func FacebookConflict(gamma *Command, delta *Command) bool {
 	if gamma.K == delta.K {
-		if (gamma.Op == CREATE && (delta.Op == LIKE || delta.Op == READ)) ||
-			 (gamma.Op == LIKE && (delta.Op == CREATE || delta.Op == READ)) ||
-			 (gamma.Op == READ && (delta.Op == CREATE || delta.Op == LIKE)) {
+		if (gamma.Op == LIKE && delta.Op == READ) ||
+			 (gamma.Op == READ && delta.Op == LIKE) {
 			return true
 		}
 	}
@@ -163,18 +161,14 @@ func FacebookConflict(gamma *Command, delta *Command) bool {
 
 func FacebookExecute(gamma *Command, st *State) Value {
 	switch gamma.Op {
-		case CREATE:
-			if _, present := st.FBStore[gamma.K]; !present {
-				st.FBStore[gamma.K] = make(map[Value]bool)
-				st.FBStore[gamma.K][gamma.V] = true
-			}
-			
-			return OK;
 		case LIKE:
 			if innermap, present := st.FBStore[gamma.K]; present {
 				if _, present := innermap[gamma.V]; !present {
 					st.FBStore[gamma.K][gamma.V] = true
 				}
+			} else {
+				st.FBStore[gamma.K] = make(map[Value]bool)
+				st.FBStore[gamma.K][gamma.V] = true
 			}
 
 			return OK;

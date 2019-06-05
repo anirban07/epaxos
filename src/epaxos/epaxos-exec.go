@@ -1,7 +1,8 @@
 package epaxos
 
 import (
-	//    "state"
+	"log"
+	"state"
 	"epaxosproto"
 	"genericsmrproto"
 	"sort"
@@ -84,7 +85,7 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 			// Idea: Skip through the log entries that don't conflict with the command
 			//       we're trying to execute. Still have to wait on edges that conflict
 			//       that cascade down the chain.
-			if !state.CONFLICT_FUNC(v.Cmds[0], e.r.InstanceSpace[q][i].Cmds[0]) {
+			if !state.CONFLICT_FUNC(&v.Cmds[0], &e.r.InstanceSpace[q][i].Cmds[0]) {
         continue
       }
 
@@ -120,6 +121,7 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 			}
 			for idx := 0; idx < len(w.Cmds); idx++ {
 				val := w.Cmds[idx].Execute(e.r.State)
+				log.Printf("Replica %d: Executed %v with response %v on instance %d\n", e.r.Id, w.Cmds[idx], val, w.Index)
 				if e.r.Dreply && w.lb != nil && w.lb.clientProposals != nil {
 					e.r.ReplyProposeTS(
 						&genericsmrproto.ProposeReplyTS{
