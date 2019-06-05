@@ -74,6 +74,7 @@ type Replica struct {
 	latestCPInstance      int32
 	clientMutex           *sync.Mutex // for synchronizing when sending replies to clients from multiple go-routines
 	instancesToRecover    chan *instanceId
+	startTimes            map[int32]int64
 }
 
 type Instance struct {
@@ -144,7 +145,8 @@ func NewReplica(id int, peerAddrList []string, thrifty bool, exec bool, dreply b
 		0,
 		-1,
 		new(sync.Mutex),
-		make(chan *instanceId, genericsmr.CHAN_BUFFER_SIZE)}
+		make(chan *instanceId, genericsmr.CHAN_BUFFER_SIZE),
+		make(map[int32]int64)}
 
 	r.Beacon = beacon
 	r.Durable = durable
@@ -176,7 +178,6 @@ func NewReplica(id int, peerAddrList []string, thrifty bool, exec bool, dreply b
 	r.commitShortRPC = r.RegisterRPC(new(epaxosproto.CommitShort), r.commitShortChan)
 	r.tryPreAcceptRPC = r.RegisterRPC(new(epaxosproto.TryPreAccept), r.tryPreAcceptChan)
 	r.tryPreAcceptReplyRPC = r.RegisterRPC(new(epaxosproto.TryPreAcceptReply), r.tryPreAcceptReplyChan)
-
 	go r.run()
 
 	return r
@@ -311,6 +312,7 @@ func (r *Replica) run() {
 		case propose := <-onOffProposeChan:
 			//got a Propose from a client
 			dlog.Printf("Proposal with op %d\n", propose.Command.Op)
+			r.startTimes[propose.CommandId] = time.Now().UnixNano()
 			r.handlePropose(propose)
 			//deactivate new proposals channel to prioritize the handling of other protocol messages,
 			//and to allow commands to accumulate for batching
@@ -415,7 +417,6 @@ func (r *Replica) run() {
 		case <-r.OnClientConnect:
 			log.Printf("weird %d; conflicted %d; slow %d; happy %d\n", weird, conflicted, slow, happy)
 			weird, conflicted, slow, happy = 0, 0, 0, 0
-			log.Printf("State: %v\n", r.State)
 
 		case iid := <-r.instancesToRecover:
 			r.startRecoveryForInstance(iid.replica, iid.instance)
@@ -1053,13 +1054,15 @@ func (r *Replica) handlePreAcceptReply(pareply *epaxosproto.PreAcceptReply) {
 		if inst.lb.clientProposals != nil && !r.Dreply {
 			// give clients the all clear
 			for i := 0; i < len(inst.lb.clientProposals); i++ {
+				var delt int64 = time.Now().UnixNano() - r.startTimes[inst.lb.clientProposals[i].CommandId]
 				r.ReplyProposeTS(
 					&genericsmrproto.ProposeReplyTS{
 						TRUE,
 						inst.lb.clientProposals[i].CommandId,
 						state.NIL,
-						inst.lb.clientProposals[i].Timestamp},
+						delt},
 					inst.lb.clientProposals[i].Reply)
+				log.Printf("FP: Decided command %d in %fms\n", inst.lb.clientProposals[i].CommandId, float64(delt) / 1000000.0)
 			}
 		}
 
@@ -1114,13 +1117,15 @@ func (r *Replica) handlePreAcceptOK(pareply *epaxosproto.PreAcceptOK) {
 		if inst.lb.clientProposals != nil && !r.Dreply {
 			// give clients the all clear
 			for i := 0; i < len(inst.lb.clientProposals); i++ {
+				var delt int64 = time.Now().UnixNano() - r.startTimes[inst.lb.clientProposals[i].CommandId]
 				r.ReplyProposeTS(
 					&genericsmrproto.ProposeReplyTS{
 						TRUE,
 						inst.lb.clientProposals[i].CommandId,
 						state.NIL,
-						inst.lb.clientProposals[i].Timestamp},
+						delt},
 					inst.lb.clientProposals[i].Reply)
+				log.Printf("FP: Decided command %d in %fms\n", inst.lb.clientProposals[i].CommandId, float64(delt) / 1000000.0)
 			}
 		}
 
@@ -1231,13 +1236,15 @@ func (r *Replica) handleAcceptReply(areply *epaxosproto.AcceptReply) {
 		if inst.lb.clientProposals != nil && !r.Dreply {
 			// give clients the all clear
 			for i := 0; i < len(inst.lb.clientProposals); i++ {
+				var delt int64 = time.Now().UnixNano() - r.startTimes[inst.lb.clientProposals[i].CommandId]
 				r.ReplyProposeTS(
 					&genericsmrproto.ProposeReplyTS{
 						TRUE,
 						inst.lb.clientProposals[i].CommandId,
 						state.NIL,
-						inst.lb.clientProposals[i].Timestamp},
+						delt},
 					inst.lb.clientProposals[i].Reply)
+				log.Printf("SP: Decided command %d in %fms\n", inst.lb.clientProposals[i].CommandId, float64(delt) / 1000000.0)
 			}
 		}
 

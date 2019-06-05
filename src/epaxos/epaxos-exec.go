@@ -121,15 +121,18 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 			}
 			for idx := 0; idx < len(w.Cmds); idx++ {
 				val := w.Cmds[idx].Execute(e.r.State)
-				log.Printf("Replica %d: Executed %v with response %v on instance %d\n", e.r.Id, w.Cmds[idx], val, w.Index)
-				if e.r.Dreply && w.lb != nil && w.lb.clientProposals != nil {
-					e.r.ReplyProposeTS(
-						&genericsmrproto.ProposeReplyTS{
-							TRUE,
-							w.lb.clientProposals[idx].CommandId,
-							val,
-							w.lb.clientProposals[idx].Timestamp},
-						w.lb.clientProposals[idx].Reply)
+				if w.lb != nil && w.lb.clientProposals != nil {
+					var delt int64 = time.Now().UnixNano() - e.r.startTimes[w.lb.clientProposals[idx].CommandId]
+					log.Printf("Executed command %d in %fms\n", w.lb.clientProposals[idx].CommandId, float64(delt) / 1000000.0)
+					if e.r.Dreply {
+						e.r.ReplyProposeTS(
+							&genericsmrproto.ProposeReplyTS{
+								TRUE,
+								w.lb.clientProposals[idx].CommandId,
+								val,
+								delt},
+							w.lb.clientProposals[idx].Reply)
+					}
 				}
 			}
 			w.Status = epaxosproto.EXECUTED

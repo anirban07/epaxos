@@ -86,7 +86,9 @@ func (c *Command) Execute(st *State) Value {
 
 func DefaultConflict(gamma *Command, delta *Command) bool {
 	if gamma.K == delta.K {
-		if gamma.Op == LIKE || delta.Op == LIKE {
+		if gamma.Op == LIKE || delta.Op == LIKE ||
+			 gamma.Op == INCREMENT || delta.Op == INCREMENT ||
+			 gamma.Op == PUT || delta.Op == PUT {
 			return true
 		}
 	}
