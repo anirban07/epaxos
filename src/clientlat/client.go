@@ -17,7 +17,7 @@ import (
 )
 
 var masterAddr *string = flag.String("maddr", "", "Master address. Defaults to localhost")
-var masterPort *int = flag.Int("mport", 7087, "Master port.  Defaults to 7077.")
+var masterPort *int = flag.Int("mport", 7087, "Master port.  Defaults to 7087.")
 var reqsNb *int = flag.Int("q", 5000, "Total number of requests. Defaults to 5000.")
 var noLeader *bool = flag.Bool("e", false, "Egalitarian (no leader). Defaults to false.")
 var procs *int = flag.Int("p", 2, "GOMAXPROCS. Defaults to 2")
@@ -73,7 +73,7 @@ func main() {
 	go printer(readings, done)
 
 	for i := 0; i < *T; i++ {
-		go simulatedClient(rlReply, leader, readings, done)
+		go simulatedClient(i+1, rlReply, leader, readings, done)
 	}
 
 	for i := 0; i < *T+1; i++ {
@@ -82,7 +82,7 @@ func main() {
 	master.Close()
 }
 
-func simulatedClient(rlReply *masterproto.GetReplicaListReply, leader int, readings chan float64, done chan bool) {
+func simulatedClient(clientId int, rlReply *masterproto.GetReplicaListReply, leader int, readings chan float64, done chan bool) {
 	N := len(rlReply.ReplicaList)
 	servers := make([]net.Conn, N)
 	readers := make([]*bufio.Reader, N)
@@ -108,7 +108,7 @@ func simulatedClient(rlReply *masterproto.GetReplicaListReply, leader int, readi
 			if r < *conflicts {
 				karray[i] = 42
 			} else {
-				karray[i] = int64(*startRange + 43 + i)
+				karray[i] = int64(*startRange + 43 + (clientId * *reqsNb) + i)
 			}
 		} else {
 			karray[i] = int64(zipf.Uint64())
@@ -125,9 +125,9 @@ func simulatedClient(rlReply *masterproto.GetReplicaListReply, leader int, readi
 		writers[i] = bufio.NewWriter(servers[i])
 	}
 
-	var id int32 = 0
-	args := genericsmrproto.Propose{id, state.Command{state.PUT, 0, 0}}
-	var reply genericsmrproto.ProposeReply
+	var commandId int32 = 0
+	args := genericsmrproto.Propose{commandId, state.Command{state.PUT, 0, 0}, 0}
+	var reply genericsmrproto.ProposeReplyTS
 
 	n := *reqsNb
 
@@ -135,7 +135,7 @@ func simulatedClient(rlReply *masterproto.GetReplicaListReply, leader int, readi
 		if *noLeader {
 			leader = rarray[i]
 		}
-		args.ClientId = id
+		args.CommandId = commandId + int32(clientId*n)
 		args.Command.K = state.Key(karray[i])
 		writers[leader].WriteByte(genericsmrproto.PROPOSE)
 
@@ -150,7 +150,7 @@ func simulatedClient(rlReply *masterproto.GetReplicaListReply, leader int, readi
 
 		after := time.Now()
 
-		id++
+		commandId++
 
 		readings <- (after.Sub(before)).Seconds() * 1000
 

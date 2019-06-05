@@ -1,11 +1,11 @@
 package epaxos
 
 import (
-	"log"
-	"state"
+	"dlog"
 	"epaxosproto"
 	"genericsmrproto"
 	"sort"
+	"state"
 	"time"
 )
 
@@ -86,8 +86,8 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 			//       we're trying to execute. Still have to wait on edges that conflict
 			//       that cascade down the chain.
 			if !state.CONFLICT_FUNC(&v.Cmds[0], &e.r.InstanceSpace[q][i].Cmds[0]) {
-        continue
-      }
+				continue
+			}
 
 			w := e.r.InstanceSpace[q][i]
 			if w.Index == 0 {
@@ -123,7 +123,7 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 				val := w.Cmds[idx].Execute(e.r.State)
 				if w.lb != nil && w.lb.clientProposals != nil {
 					var delt int64 = time.Now().UnixNano() - e.r.startTimes[w.lb.clientProposals[idx].CommandId]
-					log.Printf("Executed command %d in %fms\n", w.lb.clientProposals[idx].CommandId, float64(delt) / 1000000.0)
+					dlog.Printf("Executed command %d in %fms\n", w.lb.clientProposals[idx].CommandId, float64(delt)/1000000.0)
 					if e.r.Dreply {
 						e.r.ReplyProposeTS(
 							&genericsmrproto.ProposeReplyTS{
