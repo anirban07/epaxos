@@ -6,6 +6,7 @@ import (
 	"epaxosproto"
 	"genericsmrproto"
 	"sort"
+	"state"
 	"time"
 )
 
@@ -86,8 +87,8 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 			//       we're trying to execute. Still have to wait on edges that conflict
 			//       that cascade down the chain.
 			if !state.CONFLICT_FUNC(&v.Cmds[0], &e.r.InstanceSpace[q][i].Cmds[0]) {
-        continue
-      }
+				continue
+			}
 
 			w := e.r.InstanceSpace[q][i]
 			if w.Index == 0 {
