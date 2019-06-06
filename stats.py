@@ -13,11 +13,13 @@ def mean_confidence_interval(data, confidence=0.95):
     h = se * scipy.stats.t.ppf((1 + confidence) / 2., n-1)
     return m, m-h, m+h
 
-if __name__ == '__main__':
-    if len(sys.argv) != 3:
+def get_stats(argv)
+    if len(argv) != 3:
         print("Usage: python stats.py [filename] [N]")
-    filename = sys.argv[1]
-    N = int(sys.argv[2])
+        sys.exit(1)
+
+    filename = argv[1]
+    N = int(argv[2])
     stats = dict()
     conflicts = -1
     Q = -1
@@ -38,7 +40,8 @@ if __name__ == '__main__':
             if T == -1:
                 T = int(re.search(r'\d+', line).group())
             for j in range(T * Q):
-                stats[serverName].append(float(f.readline().strip()))
+                # Operation stored in .split()[0] of the line
+                stats[serverName].append(float(f.readline().strip().split()[1]))
 
     print('Servers:', N)
     print('Clients Per Server:', T)
@@ -57,6 +60,10 @@ if __name__ == '__main__':
         print('\t95%% Confidence Interval: [%f, %f]' % (lo, hi))
         print()
 
+    return stats
+
+if __name__ == '__main__':
+    stats = get_stats(sys.argv)
     # Make Bar Graph
     barWidth = 0.3
     latBars = []
