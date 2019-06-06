@@ -8,4 +8,4 @@ CMD="go run server.go -maddr $1 -addr $IP -e -exec -dreply -app $2"
 
 echo $CMD
 
-CMD
+$CMD

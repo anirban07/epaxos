@@ -6,4 +6,4 @@ CMD="go run master.go -N $1"
 
 echo $CMD
 
-CMD
+$CMD
