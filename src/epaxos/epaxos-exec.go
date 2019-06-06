@@ -2,7 +2,6 @@ package epaxos
 
 import (
 	//"log"
-	"state"
 	"epaxosproto"
 	"genericsmrproto"
 	"sort"
