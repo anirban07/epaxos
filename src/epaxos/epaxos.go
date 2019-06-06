@@ -312,7 +312,7 @@ func (r *Replica) run() {
 		case propose := <-onOffProposeChan:
 			//got a Propose from a client
 			dlog.Printf("Proposal with op %d\n", propose.Command.Op)
-			r.startTimes[propose.CommandId] = time.Now().UnixNano()
+			//r.startTimes[propose.CommandId] = time.Now().UnixNano()
 			r.handlePropose(propose)
 			//deactivate new proposals channel to prioritize the handling of other protocol messages,
 			//and to allow commands to accumulate for batching
@@ -1054,7 +1054,7 @@ func (r *Replica) handlePreAcceptReply(pareply *epaxosproto.PreAcceptReply) {
 		if inst.lb.clientProposals != nil && !r.Dreply {
 			// give clients the all clear
 			for i := 0; i < len(inst.lb.clientProposals); i++ {
-				var delt int64 = time.Now().UnixNano() - r.startTimes[inst.lb.clientProposals[i].CommandId]
+				var delt int64 = 0;//time.Now().UnixNano() - r.startTimes[inst.lb.clientProposals[i].CommandId]
 				r.ReplyProposeTS(
 					&genericsmrproto.ProposeReplyTS{
 						TRUE,
@@ -1062,7 +1062,7 @@ func (r *Replica) handlePreAcceptReply(pareply *epaxosproto.PreAcceptReply) {
 						state.NIL,
 						delt},
 					inst.lb.clientProposals[i].Reply)
-				log.Printf("FP: Decided command %d in %fms\n", inst.lb.clientProposals[i].CommandId, float64(delt) / 1000000.0)
+				//log.Printf("FP: Decided command %d in %fms\n", inst.lb.clientProposals[i].CommandId, float64(delt) / 1000000.0)
 			}
 		}
 
@@ -1117,7 +1117,7 @@ func (r *Replica) handlePreAcceptOK(pareply *epaxosproto.PreAcceptOK) {
 		if inst.lb.clientProposals != nil && !r.Dreply {
 			// give clients the all clear
 			for i := 0; i < len(inst.lb.clientProposals); i++ {
-				var delt int64 = time.Now().UnixNano() - r.startTimes[inst.lb.clientProposals[i].CommandId]
+				var delt int64 = 0;//time.Now().UnixNano() - r.startTimes[inst.lb.clientProposals[i].CommandId]
 				r.ReplyProposeTS(
 					&genericsmrproto.ProposeReplyTS{
 						TRUE,
@@ -1125,7 +1125,7 @@ func (r *Replica) handlePreAcceptOK(pareply *epaxosproto.PreAcceptOK) {
 						state.NIL,
 						delt},
 					inst.lb.clientProposals[i].Reply)
-				log.Printf("FP: Decided command %d in %fms\n", inst.lb.clientProposals[i].CommandId, float64(delt) / 1000000.0)
+				//log.Printf("FP: Decided command %d in %fms\n", inst.lb.clientProposals[i].CommandId, float64(delt) / 1000000.0)
 			}
 		}
 
@@ -1236,7 +1236,7 @@ func (r *Replica) handleAcceptReply(areply *epaxosproto.AcceptReply) {
 		if inst.lb.clientProposals != nil && !r.Dreply {
 			// give clients the all clear
 			for i := 0; i < len(inst.lb.clientProposals); i++ {
-				var delt int64 = time.Now().UnixNano() - r.startTimes[inst.lb.clientProposals[i].CommandId]
+				var delt int64 = 0;//time.Now().UnixNano() - r.startTimes[inst.lb.clientProposals[i].CommandId]
 				r.ReplyProposeTS(
 					&genericsmrproto.ProposeReplyTS{
 						TRUE,
@@ -1244,7 +1244,7 @@ func (r *Replica) handleAcceptReply(areply *epaxosproto.AcceptReply) {
 						state.NIL,
 						delt},
 					inst.lb.clientProposals[i].Reply)
-				log.Printf("SP: Decided command %d in %fms\n", inst.lb.clientProposals[i].CommandId, float64(delt) / 1000000.0)
+				//log.Printf("SP: Decided command %d in %fms\n", inst.lb.clientProposals[i].CommandId, float64(delt) / 1000000.0)
 			}
 		}
 

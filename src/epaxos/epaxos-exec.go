@@ -1,7 +1,7 @@
 package epaxos
 
 import (
-	"log"
+	//"log"
 	"state"
 	"epaxosproto"
 	"genericsmrproto"
@@ -122,8 +122,8 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 			for idx := 0; idx < len(w.Cmds); idx++ {
 				val := w.Cmds[idx].Execute(e.r.State)
 				if w.lb != nil && w.lb.clientProposals != nil {
-					var delt int64 = time.Now().UnixNano() - e.r.startTimes[w.lb.clientProposals[idx].CommandId]
-					log.Printf("Executed command %d in %fms\n", w.lb.clientProposals[idx].CommandId, float64(delt) / 1000000.0)
+					var delt int64 = 0;//time.Now().UnixNano() - e.r.startTimes[w.lb.clientProposals[idx].CommandId]
+					//log.Printf("Executed command %d in %fms\n", w.lb.clientProposals[idx].CommandId, float64(delt) / 1000000.0)
 					if e.r.Dreply {
 						e.r.ReplyProposeTS(
 							&genericsmrproto.ProposeReplyTS{
