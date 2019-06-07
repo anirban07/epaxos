@@ -1,11 +1,11 @@
 package epaxos
 
 import (
-	//    "state"
 	"dlog"
 	"epaxosproto"
 	"genericsmrproto"
 	"sort"
+	"state"
 	"time"
 )
 
@@ -84,9 +84,9 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 			}
 
 			// Skip if the commands in the batch do not conflict
-			//if !state.ConflictBatch(v.Cmds, e.r.InstanceSpace[q][i].Cmds) {
-			//	continue
-			//}
+			if !state.ConflictBatch(v.Cmds, e.r.InstanceSpace[q][i].Cmds) {
+				continue
+			}
 			w := e.r.InstanceSpace[q][i]
 
 			if w.Index == 0 {
