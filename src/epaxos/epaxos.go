@@ -790,7 +790,8 @@ func (r *Replica) updateAttributes(cmds []state.Command, seq int32, deps [DS]int
 				// if sequence numbers are different so long as they are executed
 				// deterministically in the execution phase. We ensure this by
 				// breaking ties with command ids.
-				//changed = true
+				// DISABLED FOR SMART-ONLY
+				changed = true
 				seq = s + 1
 			}
 		}
@@ -805,7 +806,8 @@ func (r *Replica) mergeAttributes(seq1 int32, deps1 [DS]int32, seq2 int32, deps2
 		// if sequence numbers are different so long as they are executed
 		// deterministically in the execution phase. We ensure this by
 		// breaking ties with command ids.
-		//equal = false
+		// DISABLED FOR SMART-ONLY
+		equal = false
 		if seq2 > seq1 {
 			seq1 = seq2
 		}
