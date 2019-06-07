@@ -768,7 +768,7 @@ func (r *Replica) updateAttributes(cmds []state.Command, seq int32, deps [DS]int
 		}
 		for i := 0; i < len(cmds); i++ {
 			cmd := cmds[i]
-			for opType, ops := range r.smartConflicts[replica] {
+			for opType, ops := range r.smartConflicts[q] {
 				if !state.OP_CONFLICT_FUNC(cmd.Op, opType) {
 					continue
 				}
@@ -776,7 +776,7 @@ func (r *Replica) updateAttributes(cmds []state.Command, seq int32, deps [DS]int
 				if d, present := ops[cmd.K]; present {
 					if d > deps[q] {
 						deps[q] = d
-						if r.InstanceSpace[q][d] != nil && seq <= r.InstanceSpace[q][d].Seq {
+						if seq <= r.InstanceSpace[q][d].Seq {
 							seq = r.InstanceSpace[q][d].Seq + 1
 						}
 						changed = true

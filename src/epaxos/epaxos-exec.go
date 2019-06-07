@@ -148,6 +148,10 @@ func (na nodeArray) Len() int {
 }
 
 func (na nodeArray) Less(i, j int) bool {
+	if na[i].Seq == na[j].Seq {
+		return na[i].Cmds[0].V < na[j].Cmds[0].V
+	}
+
 	return na[i].Seq < na[j].Seq
 }
 

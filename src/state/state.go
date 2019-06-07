@@ -59,13 +59,14 @@ func (c *Command) Execute(st *State) Value {
 }
 
 func DefaultOperationConflict(op1 Operation, op2 Operation) bool {
-	return true
+	return op1 == PUT || op2 == PUT
 }
 
 func DefaultConflict(gamma *Command, delta *Command) bool {
 	if gamma.K == delta.K {
 		return DefaultOperationConflict(gamma.Op, delta.Op)
 	}
+
 	return false
 }
 
