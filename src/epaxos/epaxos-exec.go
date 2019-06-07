@@ -1,7 +1,7 @@
 package epaxos
 
 import (
-	//"log"
+	"dlog"
 	"epaxosproto"
 	"genericsmrproto"
 	"sort"
@@ -81,11 +81,9 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 				time.Sleep(1000 * 1000)
 			}
 
-			// Works because we're only batching 1 command at a time
-			// Idea: Skip through the log entries that don't conflict with the command
-			//       we're trying to execute. Still have to wait on edges that conflict
-			//       that cascade down the chain.
-			//if !state.CONFLICT_FUNC(&v.Cmds[0], &e.r.InstanceSpace[q][i].Cmds[0]) {
+			// Skip if the commands in the batch do not conflict
+			// DISABLED FOR VANILLA
+			//if !state.ConflictBatch(v.Cmds, e.r.InstanceSpace[q][i].Cmds) {
 			//	continue
 			//}
 
@@ -121,18 +119,15 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 			}
 			for idx := 0; idx < len(w.Cmds); idx++ {
 				val := w.Cmds[idx].Execute(e.r.State)
-				if w.lb != nil && w.lb.clientProposals != nil {
-					var delt int64 = 0;//time.Now().UnixNano() - e.r.startTimes[w.lb.clientProposals[idx].CommandId]
-					//log.Printf("Executed command %d in %fms\n", w.lb.clientProposals[idx].CommandId, float64(delt) / 1000000.0)
-					if e.r.Dreply {
-						e.r.ReplyProposeTS(
-							&genericsmrproto.ProposeReplyTS{
-								TRUE,
-								w.lb.clientProposals[idx].CommandId,
-								val,
-								delt},
-							w.lb.clientProposals[idx].Reply)
-					}
+				dlog.Printf("Replica %d: Executed command %v with seq: %d, result: %d\n", e.r.Id, w.Cmds[idx], w.Seq, val)
+				if e.r.Dreply && w.lb != nil && w.lb.clientProposals != nil {
+					e.r.ReplyProposeTS(
+						&genericsmrproto.ProposeReplyTS{
+							TRUE,
+							w.lb.clientProposals[idx].CommandId,
+							val,
+							w.lb.clientProposals[idx].Timestamp},
+						w.lb.clientProposals[idx].Reply)
 				}
 			}
 			w.Status = epaxosproto.EXECUTED
@@ -158,6 +153,15 @@ func (na nodeArray) Len() int {
 }
 
 func (na nodeArray) Less(i, j int) bool {
+	// NOTE:
+	// This protocol relies on command ids being unique across all clients
+	// and commands to break ties. Make sure this is true if results look
+	// inconsistent
+	// DISABLED FOR VANILLA
+	//if na[i].Seq == na[j].Seq {
+	//	return na[i].Cmds[0].CommandId < na[j].Cmds[0].CommandId
+	//}
+
 	return na[i].Seq < na[j].Seq
 }
 

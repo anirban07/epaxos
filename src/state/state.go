@@ -1,13 +1,11 @@
 package state
 
 import (
-	//"fmt"
-	//"code.google.com/p/leveldb-go/leveldb"
-	//"encoding/binary"
 	"log"
 )
 
 type Operation uint8
+
 const (
 	NONE Operation = iota
 	PUT
@@ -27,6 +25,7 @@ const (
 
 type Key int64
 type Value int64
+
 const NIL Value = 0
 const OK Value = 1
 
@@ -37,22 +36,26 @@ type State struct {
 
 var CONFLICT_FUNC ConflictFunction
 var EXECUTE_FUNC ExecuteFunction
+var OP_CONFLICT_FUNC OperationConflict
 
 func InitState(app Application) *State {
 	switch app {
 		case DEFAULT:
 			log.Printf("Using Default Application")
 			CONFLICT_FUNC = DefaultConflict
+			OP_CONFLICT_FUNC = DefaultOperationConflict
 			EXECUTE_FUNC = DefaultExecute
 			break
 		case INVENTORY:
 			log.Printf("Using Inventory Application")
 			CONFLICT_FUNC = DefaultConflict
+			OP_CONFLICT_FUNC = DefaultOperationConflict
 			EXECUTE_FUNC = InventoryExecute
 			break
 		case FACEBOOK:
 			log.Printf("Using Facebook Application")
 			CONFLICT_FUNC = DefaultConflict
+			OP_CONFLICT_FUNC = DefaultOperationConflict
 			EXECUTE_FUNC = FacebookExecute
 			break
 	}
@@ -60,15 +63,16 @@ func InitState(app Application) *State {
 	return &State{make(map[Key]Value), make(map[Key]map[Value]bool)}
 }
 
-type ConflictFunction func(gamma *Command, delta *Command) (bool)
-type ExecuteFunction func(gamma *Command, st *State) (Value)
+type ConflictFunction func(gamma *Command, delta *Command) bool
+type ExecuteFunction func(gamma *Command, st *State) Value
+type OperationConflict func(op1 Operation, op2 Operation) bool
 type Command struct {
+	CommandId int32
 	Op Operation
-	K Key
-	V Value
+	K  Key
+	V  Value
 }
 
-// Set these to the functions you want to run
 func ConflictBatch(batch1 []Command, batch2 []Command) bool {
 	for i := 0; i < len(batch1); i++ {
 		for j := 0; j < len(batch2); j++ {
@@ -84,30 +88,31 @@ func (c *Command) Execute(st *State) Value {
 	return EXECUTE_FUNC(c, st)
 }
 
+func DefaultOperationConflict(op1 Operation, op2 Operation) bool {
+	return op1 == PUT || op2 == PUT
+}
+
 func DefaultConflict(gamma *Command, delta *Command) bool {
 	if gamma.K == delta.K {
-		if gamma.Op == LIKE || delta.Op == LIKE ||
-			 gamma.Op == INCREMENT || delta.Op == INCREMENT ||
-			 gamma.Op == PUT || delta.Op == PUT {
-			return true
-		}
+		return DefaultOperationConflict(gamma.Op, delta.Op)
 	}
+
 	return false
 }
 
 func DefaultExecute(gamma *Command, st *State) Value {
 	switch gamma.Op {
-		case PUT:
-			st.Store[gamma.K] = gamma.V
-			return gamma.V
+	case PUT:
+		st.Store[gamma.K] = gamma.V
+		return gamma.V
 
-		case GET:
-			if val, present := st.Store[gamma.K]; present {
-				return val
-			}
+	case GET:
+		if val, present := st.Store[gamma.K]; present {
+			return val
+		}
 
-		default:
-			break
+	default:
+		break
 	}
 
 	return NIL
@@ -115,12 +120,13 @@ func DefaultExecute(gamma *Command, st *State) Value {
 
 // Conflicts only when a read and an increment are occuring on the same
 // key
+func InventoryOperationConflict(op1 Operation, op2 Operation) bool {
+	return (op1 == READ && op2 == INCREMENT) || (op1 == INCREMENT && op2 == READ)
+}
+
 func InventoryConflict(gamma *Command, delta *Command) bool {
 	if gamma.K == delta.K {
-		if (gamma.Op == READ && delta.Op == INCREMENT)  || 
-			 (gamma.Op == INCREMENT && delta.Op == READ) {
-			return true
-		}
+		return InventoryOperationConflict(gamma.Op, delta.Op)
 	}
 
 	return false
@@ -128,34 +134,35 @@ func InventoryConflict(gamma *Command, delta *Command) bool {
 
 func InventoryExecute(gamma *Command, st *State) Value {
 	switch gamma.Op {
-		case INCREMENT:
-			if val, present := st.Store[gamma.K]; present {
-				st.Store[gamma.K] = gamma.V + val
-			} else {
-				st.Store[gamma.K] = gamma.V
-			}
+	case INCREMENT:
+		if val, present := st.Store[gamma.K]; present {
+			st.Store[gamma.K] = gamma.V + val
+		} else {
+			st.Store[gamma.K] = gamma.V
+		}
 
-			return st.Store[gamma.K]
+		return st.Store[gamma.K]
 
-		case READ:
-		case FAST_READ:
-			if val, present := st.Store[gamma.K]; present {
-				return val
-			}
+	case READ:
+	case FAST_READ:
+		if val, present := st.Store[gamma.K]; present {
+			return val
+		}
 
-		default:
-			break
+	default:
+		break
 	}
 
 	return NIL
 }
 
+func FacebookOperationConflict(op1 Operation, op2 Operation) bool {
+	return (op1 == LIKE && op2 == READ) || (op1 == READ && op2 == LIKE)
+}
+
 func FacebookConflict(gamma *Command, delta *Command) bool {
 	if gamma.K == delta.K {
-		if (gamma.Op == LIKE && delta.Op == READ) ||
-			 (gamma.Op == READ && delta.Op == LIKE) {
-			return true
-		}
+		return FacebookOperationConflict(gamma.Op, delta.Op)
 	}
 
 	return false

@@ -148,7 +148,7 @@ func main() {
 
 	var id int32 = 0
 	done := make(chan bool, N)
-	args := genericsmrproto.Propose{id, state.Command{state.PUT, 0, 0}, 0}
+	args := genericsmrproto.Propose{id, state.Command{0, state.PUT, 0, 0}, 0}
 
 	before_total := time.Now()
 
@@ -187,6 +187,7 @@ func main() {
 			}
 			args.Command.K = state.Key(karray[i])
 			args.Command.V = state.Value(i)
+			args.Command.CommandId = id
 			//args.Timestamp = time.Now().UnixNano()
 			if !*fast {
 				if *noLeader {
