@@ -72,13 +72,11 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 			for e.r.InstanceSpace[q][i] == nil || e.r.InstanceSpace[q][i].Cmds == nil || v.Cmds == nil {
 				time.Sleep(1000 * 1000)
 			}
-			/*        if !state.Conflict(v.Command, e.r.InstanceSpace[q][i].Command) {
-			          continue
-			          }
-			*/
+
 			if e.r.InstanceSpace[q][i].Status == epaxosproto.EXECUTED {
 				continue
 			}
+
 			for e.r.InstanceSpace[q][i].Status != epaxosproto.COMMITTED {
 				time.Sleep(1000 * 1000)
 			}
@@ -87,8 +85,8 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 			if !state.ConflictBatch(v.Cmds, e.r.InstanceSpace[q][i].Cmds) {
 				continue
 			}
-			w := e.r.InstanceSpace[q][i]
 
+			w := e.r.InstanceSpace[q][i]
 			if w.Index == 0 {
 				if !e.strongconnect(w, index) {
 					for j := l; j < len(stack); j++ {
@@ -100,7 +98,7 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 				if w.Lowlink < v.Lowlink {
 					v.Lowlink = w.Lowlink
 				}
-			} else { //if e.inStack(w)  //<- probably unnecessary condition, saves a linear search
+			} else {
 				if w.Index < v.Lowlink {
 					v.Lowlink = w.Index
 				}

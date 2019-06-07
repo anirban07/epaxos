@@ -1,3 +1,5 @@
 stats_*
 bin/*
 src/server/stable-store-replica*
+__pycache__/*
+host_config.py

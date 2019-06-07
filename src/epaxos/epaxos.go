@@ -128,9 +128,9 @@ type LeaderBookkeeping struct {
 	tpaOKs            int
 }
 
-func NewReplica(id int, peerAddrList []string, thrifty bool, exec bool, dreply bool, beacon bool, durable bool) *Replica {
+func NewReplica(id int, peerAddrList []string, thrifty bool, exec bool, dreply bool, beacon bool, durable bool, app state.Application) *Replica {
 	r := &Replica{
-		genericsmr.NewReplica(id, peerAddrList, thrifty, exec, dreply),
+		genericsmr.NewReplica(id, peerAddrList, thrifty, exec, dreply, app),
 		make(chan fastrpc.Serializable, genericsmr.CHAN_BUFFER_SIZE),
 		make(chan fastrpc.Serializable, genericsmr.CHAN_BUFFER_SIZE),
 		make(chan fastrpc.Serializable, genericsmr.CHAN_BUFFER_SIZE),
@@ -191,7 +191,6 @@ func NewReplica(id int, peerAddrList []string, thrifty bool, exec bool, dreply b
 	r.commitShortRPC = r.RegisterRPC(new(epaxosproto.CommitShort), r.commitShortChan)
 	r.tryPreAcceptRPC = r.RegisterRPC(new(epaxosproto.TryPreAccept), r.tryPreAcceptChan)
 	r.tryPreAcceptReplyRPC = r.RegisterRPC(new(epaxosproto.TryPreAcceptReply), r.tryPreAcceptReplyChan)
-
 	go r.run()
 
 	return r
@@ -429,7 +428,6 @@ func (r *Replica) run() {
 			break
 		case <-r.OnClientConnect:
 			log.Printf("weird %d; conflicted %d; slow %d; happy %d\n", weird, conflicted, slow, happy)
-			log.Printf("%v\n", r.State)
 			weird, conflicted, slow, happy = 0, 0, 0, 0
 
 		case iid := <-r.instancesToRecover:
@@ -1113,13 +1111,15 @@ func (r *Replica) handlePreAcceptReply(pareply *epaxosproto.PreAcceptReply) {
 		if inst.lb.clientProposals != nil && !r.Dreply {
 			// give clients the all clear
 			for i := 0; i < len(inst.lb.clientProposals); i++ {
+				var delt int64 = 0;//time.Now().UnixNano() - r.startTimes[inst.lb.clientProposals[i].CommandId]
 				r.ReplyProposeTS(
 					&genericsmrproto.ProposeReplyTS{
 						TRUE,
 						inst.lb.clientProposals[i].CommandId,
 						state.NIL,
-						inst.lb.clientProposals[i].Timestamp},
+						delt},
 					inst.lb.clientProposals[i].Reply)
+				//log.Printf("FP: Decided command %d in %fms\n", inst.lb.clientProposals[i].CommandId, float64(delt) / 1000000.0)
 			}
 		}
 
@@ -1174,13 +1174,15 @@ func (r *Replica) handlePreAcceptOK(pareply *epaxosproto.PreAcceptOK) {
 		if inst.lb.clientProposals != nil && !r.Dreply {
 			// give clients the all clear
 			for i := 0; i < len(inst.lb.clientProposals); i++ {
+				var delt int64 = 0;//time.Now().UnixNano() - r.startTimes[inst.lb.clientProposals[i].CommandId]
 				r.ReplyProposeTS(
 					&genericsmrproto.ProposeReplyTS{
 						TRUE,
 						inst.lb.clientProposals[i].CommandId,
 						state.NIL,
-						inst.lb.clientProposals[i].Timestamp},
+						delt},
 					inst.lb.clientProposals[i].Reply)
+				//log.Printf("FP: Decided command %d in %fms\n", inst.lb.clientProposals[i].CommandId, float64(delt) / 1000000.0)
 			}
 		}
 
@@ -1291,13 +1293,15 @@ func (r *Replica) handleAcceptReply(areply *epaxosproto.AcceptReply) {
 		if inst.lb.clientProposals != nil && !r.Dreply {
 			// give clients the all clear
 			for i := 0; i < len(inst.lb.clientProposals); i++ {
+				var delt int64 = 0;//time.Now().UnixNano() - r.startTimes[inst.lb.clientProposals[i].CommandId]
 				r.ReplyProposeTS(
 					&genericsmrproto.ProposeReplyTS{
 						TRUE,
 						inst.lb.clientProposals[i].CommandId,
 						state.NIL,
-						inst.lb.clientProposals[i].Timestamp},
+						delt},
 					inst.lb.clientProposals[i].Reply)
+				//log.Printf("SP: Decided command %d in %fms\n", inst.lb.clientProposals[i].CommandId, float64(delt) / 1000000.0)
 			}
 		}
 

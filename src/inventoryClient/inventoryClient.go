@@ -30,15 +30,15 @@ var check = flag.Bool("check", false, "Check that every expected reply was recei
 var hotKey *int = flag.Int("c", 0, "Percentage of requests using the same key. Defaults to 0%")
 var s = flag.Float64("s", 2, "Zipfian s parameter")
 var v = flag.Float64("v", 1, "Zipfian v parameter")
+var o = flag.Int("o", 0, "Command ID offset. Defaults to 0")
 
 var N int
-
 var successful []int
 var rarray []int
 var rsp []bool
-var startTimes []time.Time
-var latencies []time.Duration
+var latencies []int64
 var OKrsp []bool
+var idOffset int32
 
 type Statistics struct {
 	ReqsNb int
@@ -130,12 +130,12 @@ func main() {
 	}
 
 	successful = make([]int, N)
-	var id int32 = 0
+	idOffset = int32(*o)
+	var id int32 = idOffset
 	done := make(chan bool, N)
 	args := genericsmrproto.Propose{id, state.Command{state.INCREMENT, 0, 0}, 0}
 	before_total := time.Now()
-	startTimes = make([]time.Time, *reqsNb)
-	latencies = make([]time.Duration, *reqsNb)
+	latencies = make([]int64, *reqsNb)
 	OKrsp = make([]bool, *reqsNb)
 	for j := 0; j < *rounds; j++ {
 		n := *reqsNb / *rounds
@@ -160,7 +160,6 @@ func main() {
 				r := rand.Intn(100)
 				if r < *fastReads {
 					args.Command.Op = state.FAST_READ
-
 				} else {
 					args.Command.Op = state.READ
 				}
@@ -172,7 +171,6 @@ func main() {
 			leader := rarray[i]
 			writers[leader].WriteByte(genericsmrproto.PROPOSE)
 			args.Marshal(writers[leader])
-			startTimes[id] = time.Now()
 			id++
 			if i % 100 == 0 {
 				for i := 0; i < N; i++ {
@@ -208,14 +206,24 @@ func main() {
 
 	after_total := time.Now()
 	fmt.Printf("Test took %v\n", after_total.Sub(before_total))
-	avg := 0.0
+	var avg float64 = 0
+  var maxLat float64 = 0
+  var minLat float64 = float64(latencies[0]) / 1000000.0
 	latency_nanos := make([]int64, *reqsNb)
 	var readLatencies []int64
 	var fastReadLatencies []int64
 	var incrementLatencies []int64
 	for i, latency := range latencies {
-		avg += latency.Seconds()
-		latency_nanos[i] = latency.Nanoseconds()
+		avg += float64(latency) / 1000000.0
+    latency_nanos[i] = latency
+    if float64(latency) / 1000000.0 > maxLat {
+      maxLat = float64(latency) / 1000000.0
+    }
+
+    if float64(latency) / 1000000.0 < minLat {
+      minLat = float64(latency) / 1000000.0
+    }
+
 		switch ops[i] {
 			case state.INCREMENT:
 				incrementLatencies = append(incrementLatencies, latency_nanos[i])
@@ -230,9 +238,10 @@ func main() {
 	}
 
 	fmt.Println()
-	avg = avg * 1000.0 / float64(len(latencies))
-	fmt.Printf("Average latency %fms\n", avg)
-
+	avg = avg / float64(len(latencies))
+  fmt.Printf("Average latency %fms\n", avg)
+  fmt.Printf("Maximum latency %fms\n", maxLat)
+  fmt.Printf("Minimum latency %fms\n", minLat)
 	stats := Statistics{
 		ReqsNb: *reqsNb,
 		Writes: *writes,
@@ -284,17 +293,17 @@ func waitReplies(readers []*bufio.Reader, leader int, n int, done chan bool) {
 		}
 
 		if *check {
-			if rsp[reply.CommandId] {
-				fmt.Println("Duplicate reply", reply.CommandId)
+			if rsp[reply.CommandId - idOffset] {
+				fmt.Println("Duplicate reply", reply.CommandId - idOffset)
 			}
 
-			rsp[reply.CommandId] = true
+			rsp[reply.CommandId - idOffset] = true
 		}
 
 		if reply.OK != 0 {
-			if !OKrsp[reply.CommandId] {
-				OKrsp[reply.CommandId] = true
-				latencies[reply.CommandId] = time.Now().Sub(startTimes[reply.CommandId])
+			if !OKrsp[reply.CommandId - idOffset] {
+				OKrsp[reply.CommandId - idOffset] = true
+				latencies[reply.CommandId - idOffset] = reply.Timestamp
 			}
 
 			successful[leader]++
