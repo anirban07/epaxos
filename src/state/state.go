@@ -33,6 +33,7 @@ type ConflictFunction func(gamma *Command, delta *Command) bool
 type ExecuteFunction func(gamma *Command, st *State) Value
 type OperationConflict func(op1 Operation, op2 Operation) bool
 type Command struct {
+	CommandId int32
 	Op Operation
 	K  Key
 	V  Value

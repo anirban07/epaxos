@@ -8,6 +8,9 @@ import (
 func (t *Command) Marshal(w io.Writer) {
 	var b [8]byte
 	bs := b[:8]
+	bs = b[:4]
+	binary.LittleEndian.PutUint32(bs, uint32(t.CommandId))
+	w.Write(bs)
 	bs = b[:1]
 	b[0] = byte(t.Op)
 	w.Write(bs)
@@ -21,6 +24,11 @@ func (t *Command) Marshal(w io.Writer) {
 func (t *Command) Unmarshal(r io.Reader) error {
 	var b [8]byte
 	bs := b[:8]
+	bs = b[:4]
+	if _, err := io.ReadFull(r, bs); err != nil {
+		return err
+	}
+	t.CommandId = int32(binary.LittleEndian.Uint32(bs))
 	bs = b[:1]
 	if _, err := io.ReadFull(r, bs); err != nil {
 		return err

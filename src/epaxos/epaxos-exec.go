@@ -2,6 +2,7 @@ package epaxos
 
 import (
 	//    "state"
+	"dlog"
 	"epaxosproto"
 	"genericsmrproto"
 	"sort"
@@ -81,10 +82,14 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 			for e.r.InstanceSpace[q][i].Status != epaxosproto.COMMITTED {
 				time.Sleep(1000 * 1000)
 			}
+
+			// Skip if the commands in the batch do not conflict
+			//if !state.ConflictBatch(v.Cmds, e.r.InstanceSpace[q][i].Cmds) {
+			//	continue
+			//}
 			w := e.r.InstanceSpace[q][i]
 
 			if w.Index == 0 {
-				//e.strongconnect(w, index)
 				if !e.strongconnect(w, index) {
 					for j := l; j < len(stack); j++ {
 						stack[j].Index = 0
@@ -115,6 +120,7 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 			}
 			for idx := 0; idx < len(w.Cmds); idx++ {
 				val := w.Cmds[idx].Execute(e.r.State)
+				dlog.Printf("Replica %d: Executed command %v with seq: %d, result: %d\n", e.r.Id, w.Cmds[idx], w.Seq, val)
 				if e.r.Dreply && w.lb != nil && w.lb.clientProposals != nil {
 					e.r.ReplyProposeTS(
 						&genericsmrproto.ProposeReplyTS{
@@ -148,8 +154,12 @@ func (na nodeArray) Len() int {
 }
 
 func (na nodeArray) Less(i, j int) bool {
+	// NOTE:
+	// This protocol relies on command ids being unique across all clients
+	// and commands to break ties. Make sure this is true if results look
+	// inconsistent
 	if na[i].Seq == na[j].Seq {
-		return na[i].Cmds[0].V < na[j].Cmds[0].V
+		return na[i].Cmds[0].CommandId < na[j].Cmds[0].CommandId
 	}
 
 	return na[i].Seq < na[j].Seq

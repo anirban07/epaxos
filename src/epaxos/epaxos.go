@@ -788,7 +788,11 @@ func (r *Replica) updateAttributes(cmds []state.Command, seq int32, deps [DS]int
 	for i := 0; i < len(cmds); i++ {
 		if s, present := r.maxSeqPerKey[cmds[i].K]; present {
 			if seq <= s {
-				changed = true
+				// Sequence numbers are used to break ties, so it's not a conflict
+				// if sequence numbers are different so long as they are executed
+				// deterministically in the execution phase. We ensure this by
+				// breaking ties with command ids.
+				//changed = true
 				seq = s + 1
 			}
 		}
@@ -799,7 +803,11 @@ func (r *Replica) updateAttributes(cmds []state.Command, seq int32, deps [DS]int
 func (r *Replica) mergeAttributes(seq1 int32, deps1 [DS]int32, seq2 int32, deps2 [DS]int32) (int32, [DS]int32, bool) {
 	equal := true
 	if seq1 != seq2 {
-		equal = false
+		// Sequence numbers are used to break ties, so it's not a conflict
+		// if sequence numbers are different so long as they are executed
+		// deterministically in the execution phase. We ensure this by
+		// breaking ties with command ids.
+		//equal = false
 		if seq2 > seq1 {
 			seq1 = seq2
 		}
