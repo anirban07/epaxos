@@ -157,9 +157,12 @@ func (na nodeArray) Less(i, j int) bool {
 	// This protocol relies on command ids being unique across all clients
 	// and commands to break ties. Make sure this is true if results look
 	// inconsistent
+	/*
+	// Disabled since we're not updating sequence numbers until deps is changed
 	if na[i].Seq == na[j].Seq {
 		return na[i].Cmds[0].CommandId < na[j].Cmds[0].CommandId
 	}
+	*/
 
 	return na[i].Seq < na[j].Seq
 }

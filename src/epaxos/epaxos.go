@@ -716,20 +716,25 @@ func (r *Replica) updateCommitted(replica int32) {
 }
 
 func (r *Replica) updateSmartConflicts(cmds []state.Command, replica int32, instance int32, seq int32) {
+	changed := false
 	for i := 0; i < len(cmds); i++ {
 		cmd := cmds[i]
 		if ops, opTypePresent := r.smartConflicts[replica][cmd.Op]; opTypePresent {
 			if d, keyPresent := ops[cmd.K]; keyPresent {
 				if d < instance {
 					ops[cmd.K] = instance
+					changed = true
 				}
 			} else {
 				ops[cmd.K] = instance
+				changed = true
 			}
 		} else {
 			r.smartConflicts[replica][cmd.Op][cmd.K] = instance
+			changed = true
 		}
-		if s, present := r.maxSeqPerKey[cmds[i].K]; present {
+
+		if s, present := r.maxSeqPerKey[cmds[i].K]; present && changed {
 			if s < seq {
 				r.maxSeqPerKey[cmds[i].K] = seq
 			}
@@ -783,35 +788,28 @@ func (r *Replica) updateAttributes(cmds []state.Command, seq int32, deps [DS]int
 			}
 		}
 	}
-	for i := 0; i < len(cmds); i++ {
-		if s, present := r.maxSeqPerKey[cmds[i].K]; present {
-			if seq <= s {
-				// Sequence numbers are used to break ties, so it's not a conflict
-				// if sequence numbers are different so long as they are executed
-				// deterministically in the execution phase. We ensure this by
-				// breaking ties with command ids.
-				// DISABLED FOR SMART-ONLY
-				changed = true
-				seq = s + 1
+
+	if changed {
+		for i := 0; i < len(cmds); i++ {
+			if s, present := r.maxSeqPerKey[cmds[i].K]; present {
+				if seq <= s {
+					// Sequence numbers are used to break ties, so it's not a conflict
+					// if sequence numbers are different so long as they are executed
+					// deterministically in the execution phase. We ensure this by
+					// breaking ties with command ids.
+					// DISABLED FOR SMART-ONLY
+					changed = true
+					seq = s + 1
+				}
 			}
 		}
 	}
+
 	return seq, deps, changed
 }
 
 func (r *Replica) mergeAttributes(seq1 int32, deps1 [DS]int32, seq2 int32, deps2 [DS]int32) (int32, [DS]int32, bool) {
 	equal := true
-	if seq1 != seq2 {
-		// Sequence numbers are used to break ties, so it's not a conflict
-		// if sequence numbers are different so long as they are executed
-		// deterministically in the execution phase. We ensure this by
-		// breaking ties with command ids.
-		// DISABLED FOR SMART-ONLY
-		equal = false
-		if seq2 > seq1 {
-			seq1 = seq2
-		}
-	}
 	for q := 0; q < r.N; q++ {
 		if int32(q) == r.Id {
 			continue
@@ -823,6 +821,19 @@ func (r *Replica) mergeAttributes(seq1 int32, deps1 [DS]int32, seq2 int32, deps2
 			}
 		}
 	}
+
+	if seq1 != seq2 && !equal {
+		// Sequence numbers are used to break ties, so it's not a conflict
+		// if sequence numbers are different so long as they are executed
+		// deterministically in the execution phase. We ensure this by
+		// breaking ties with command ids.
+		// DISABLED FOR SMART-ONLY
+		equal = false
+		if seq2 > seq1 {
+			seq1 = seq2
+		}
+	}
+
 	return seq1, deps1, equal
 }
 
