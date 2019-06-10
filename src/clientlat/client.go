@@ -124,7 +124,7 @@ func simulatedClient(clientId int, rlReply *masterproto.GetReplicaListReply, lea
 	}
 
 	var commandId int32 = 0
-	args := genericsmrproto.Propose{commandId, state.Command{state.PUT, 0, 0}, 0}
+	args := genericsmrproto.Propose{commandId, state.Command{0, state.PUT, 0, 0}, 0}
 	var reply genericsmrproto.ProposeReplyTS
 	n := *reqsNb
 	for i := 0; i < n; i++ {
