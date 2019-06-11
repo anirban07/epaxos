@@ -841,7 +841,7 @@ func (r *Replica) learn(getLub bool) (conflict bool, glb []int32, lub []int32) {
 					log.Println("cs[j] is nil")
 					return false, nil, nil
 				}
-				if !state.CONFLICT_FUNC(crtCmd, r.commands[cs[j]]) {
+				if !state.Conflict(crtCmd, r.commands[cs[j]]) {
 					continue
 				}
 				n.outEdges[cs[j]] = n.outEdges[cs[j]] + 1
