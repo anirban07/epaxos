@@ -45,6 +45,9 @@ var ALL_OPS = []state.Operation {
 	state.INCREMENT,
 	state.READ,
 	state.FAST_READ,
+	state.LIKE,
+	state.CREATE,
+	state.POST,
 }
 
 type Replica struct {
