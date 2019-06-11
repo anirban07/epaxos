@@ -210,8 +210,7 @@ func printer(readings chan float64, done chan bool) {
 	n := *T * *reqsNb
 	for i := 0; i < n; i++ {
 		lat := <-readings
-		op := <-readings
-		fmt.Printf("%d %v\n", int64(op), lat)
+		fmt.Printf("%v\n", lat)
 	}
 
 	done <- true
