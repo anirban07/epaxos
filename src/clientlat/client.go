@@ -192,7 +192,6 @@ func simulatedClient(clientId int, rlReply *masterproto.GetReplicaListReply, lea
 		after := time.Now()
 		commandId++
 		readings <- (after.Sub(before)).Seconds() * 1000
-		readings <- float64(args.Command.Op)
 		if *sleep > 0 {
 			time.Sleep(100 * 1000 * 1000)
 		}
@@ -211,8 +210,7 @@ func printer(readings chan float64, done chan bool) {
 	n := *T * *reqsNb
 	for i := 0; i < n; i++ {
 		lat := <-readings
-		op := <-readings
-		fmt.Printf("%d %v\n", int64(op), lat)
+		fmt.Printf("%v\n" lat)
 	}
 
 	done <- true
