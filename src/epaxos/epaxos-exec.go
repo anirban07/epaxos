@@ -5,7 +5,7 @@ import (
 	"epaxosproto"
 	"genericsmrproto"
 	"sort"
-	"state"
+	//"state"
 	"time"
 )
 
@@ -152,14 +152,6 @@ func (na nodeArray) Len() int {
 }
 
 func (na nodeArray) Less(i, j int) bool {
-	// NOTE:
-	// This protocol relies on command ids being unique across all clients
-	// and commands to break ties. Make sure this is true if results look
-	// inconsistent
-	if na[i].Seq == na[j].Seq {
-		return na[i].Cmds[0].CommandId < na[j].Cmds[0].CommandId
-	}
-
 	return na[i].Seq < na[j].Seq
 }
 

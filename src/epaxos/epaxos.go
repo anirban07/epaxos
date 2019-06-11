@@ -79,6 +79,7 @@ type Replica struct {
 	conflicts             []map[state.Key]int32
 	smartConflicts        []map[state.Operation]map[state.Key]int32
 	maxSeqPerKey          map[state.Key]int32
+	maxSeqPerKeyOp        map[state.Operation]map[state.Key]int32
 	maxSeq                int32
 	latestCPReplica       int32
 	latestCPInstance      int32
@@ -151,6 +152,7 @@ func NewReplica(id int, peerAddrList []string, thrifty bool, exec bool, dreply b
 		make([]map[state.Key]int32, len(peerAddrList)),
 		make([]map[state.Operation]map[state.Key]int32, len(peerAddrList)),
 		make(map[state.Key]int32),
+		make(map[state.Operation]map[state.Key]int32),
 		0,
 		0,
 		-1,
@@ -169,6 +171,10 @@ func NewReplica(id int, peerAddrList []string, thrifty bool, exec bool, dreply b
 		for _, op := range ALL_OPS {
 			r.smartConflicts[i][op] = make(map[state.Key]int32)
 		}
+	}
+
+	for _, op := range ALL_OPS {
+		r.maxSeqPerKeyOp[op] = make(map[state.Key]int32)
 	}
 
 	for bf_PT = 1; math.Pow(2, float64(bf_PT))/float64(MAX_BATCH) < BF_M_N; {
@@ -718,23 +724,21 @@ func (r *Replica) updateCommitted(replica int32) {
 func (r *Replica) updateSmartConflicts(cmds []state.Command, replica int32, instance int32, seq int32) {
 	for i := 0; i < len(cmds); i++ {
 		cmd := cmds[i]
-		if ops, opTypePresent := r.smartConflicts[replica][cmd.Op]; opTypePresent {
-			if d, keyPresent := ops[cmd.K]; keyPresent {
-				if d < instance {
-					ops[cmd.K] = instance
-				}
-			} else {
-				ops[cmd.K] = instance
+		if d, keyPresent := r.smartConflicts[replica][cmd.Op][cmd.K]; keyPresent {
+			if d < instance {
+				r.smartConflicts[replica][cmd.Op][cmd.K] = instance
 			}
 		} else {
 			r.smartConflicts[replica][cmd.Op][cmd.K] = instance
 		}
-		if s, present := r.maxSeqPerKey[cmds[i].K]; present {
+		
+
+		if s, present := r.maxSeqPerKeyOp[cmds[i].Op][cmds[i].K]; present {
 			if s < seq {
-				r.maxSeqPerKey[cmds[i].K] = seq
+				r.maxSeqPerKeyOp[cmds[i].Op][cmds[i].K] = seq
 			}
 		} else {
-			r.maxSeqPerKey[cmds[i].K] = seq
+			r.maxSeqPerKeyOp[cmds[i].Op][cmds[i].K] = seq
 		}
 	}
 }
@@ -783,33 +787,28 @@ func (r *Replica) updateAttributes(cmds []state.Command, seq int32, deps [DS]int
 			}
 		}
 	}
+
 	for i := 0; i < len(cmds); i++ {
-		if s, present := r.maxSeqPerKey[cmds[i].K]; present {
-			if seq <= s {
-				// Sequence numbers are used to break ties, so it's not a conflict
-				// if sequence numbers are different so long as they are executed
-				// deterministically in the execution phase. We ensure this by
-				// breaking ties with command ids.
-				//changed = true
-				seq = s + 1
+		for opType, ops := range r.maxSeqPerKeyOp {
+			if !state.OP_CONFLICT_FUNC(opType, cmds[i].Op) {
+				continue
+			}
+
+			if s, present := ops[cmds[i].K]; present {
+				if seq <= s {
+					changed = true
+					seq = s + 1
+				}
 			}
 		}
+		
 	}
+
 	return seq, deps, changed
 }
 
 func (r *Replica) mergeAttributes(seq1 int32, deps1 [DS]int32, seq2 int32, deps2 [DS]int32) (int32, [DS]int32, bool) {
 	equal := true
-	if seq1 != seq2 {
-		// Sequence numbers are used to break ties, so it's not a conflict
-		// if sequence numbers are different so long as they are executed
-		// deterministically in the execution phase. We ensure this by
-		// breaking ties with command ids.
-		//equal = false
-		if seq2 > seq1 {
-			seq1 = seq2
-		}
-	}
 	for q := 0; q < r.N; q++ {
 		if int32(q) == r.Id {
 			continue
@@ -821,6 +820,14 @@ func (r *Replica) mergeAttributes(seq1 int32, deps1 [DS]int32, seq2 int32, deps2
 			}
 		}
 	}
+
+	if seq1 != seq2 {
+		equal = false
+		if seq2 > seq1 {
+			seq1 = seq2
+		}
+	}
+
 	return seq1, deps1, equal
 }
 

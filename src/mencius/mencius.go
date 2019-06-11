@@ -850,7 +850,7 @@ func (r *Replica) executeCommands() {
 				time.Sleep(1000 * 1000)
 			}
 			confInst, present := conflicts[inst.command.K]
-			if present && confInst < i && r.instanceSpace[confInst].status != EXECUTED && state.CONFLICT_FUNC(r.instanceSpace[confInst].command, inst.command) {
+			if present && confInst < i && r.instanceSpace[confInst].status != EXECUTED && state.Conflict(r.instanceSpace[confInst].command, inst.command) {
 				break
 			}
 
