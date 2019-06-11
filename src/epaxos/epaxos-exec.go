@@ -5,7 +5,7 @@ import (
 	"epaxosproto"
 	"genericsmrproto"
 	"sort"
-	//"state"
+	"state"
 	"time"
 )
 
