@@ -124,7 +124,7 @@ func simulatedClient(clientId int, rlReply *masterproto.GetReplicaListReply, lea
 	}
 
 	var commandId int32 = 0
-	args := genericsmrproto.Propose{commandId, state.Command{0, state.PUT, 0, 0}, 0}
+	args := genericsmrproto.Propose{commandId, state.Command{commandId, state.PUT, 0, 0}, 0}
 	var reply genericsmrproto.ProposeReplyTS
 	n := *reqsNb
 	for i := 0; i < n; i++ {
@@ -132,8 +132,14 @@ func simulatedClient(clientId int, rlReply *masterproto.GetReplicaListReply, lea
 			leader = rarray[i]
 		}
 
-		args.CommandId = commandId + int32(clientId*n)
+		args.Command.CommandId = commandId + int32(clientId*n)
 		args.Command.K = state.Key(karray[i])
+		if state.Application(*app) == state.INVENTORY {
+			args.Command.V = state.Value(1)
+		} else {
+			args.Command.V = state.Value(args.Command.CommandId)
+		}
+
 		switch (*app) {
 			case 0:
 				r := rand.Intn(100)

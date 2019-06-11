@@ -5,7 +5,6 @@ import (
 	"epaxosproto"
 	"genericsmrproto"
 	"sort"
-	//"state"
 	"time"
 )
 
@@ -81,12 +80,6 @@ func (e *Exec) strongconnect(v *Instance, index *int) bool {
 				time.Sleep(1000 * 1000)
 			}
 
-			// Skip if the commands in the batch do not conflict
-			// DISABLED FOR VANILLA
-			//if !state.ConflictBatch(v.Cmds, e.r.InstanceSpace[q][i].Cmds) {
-			//	continue
-			//}
-
 			w := e.r.InstanceSpace[q][i]
 			if w.Index == 0 {
 				if !e.strongconnect(w, index) {
@@ -153,15 +146,6 @@ func (na nodeArray) Len() int {
 }
 
 func (na nodeArray) Less(i, j int) bool {
-	// NOTE:
-	// This protocol relies on command ids being unique across all clients
-	// and commands to break ties. Make sure this is true if results look
-	// inconsistent
-	// DISABLED FOR VANILLA
-	//if na[i].Seq == na[j].Seq {
-	//	return na[i].Cmds[0].CommandId < na[j].Cmds[0].CommandId
-	//}
-
 	return na[i].Seq < na[j].Seq
 }
 
