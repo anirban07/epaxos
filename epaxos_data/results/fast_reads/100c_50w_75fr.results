@@ -1,0 +1,44 @@
+Servers: 5
+Clients Per Server: 10
+Requests Per Client: 500
+Conflicts: 100%
+Server stats: California
+	Mean Latency: 345.108819ms
+	Max Latency: 1722.696183ms
+	Min Latency: 68.031212ms
+	Std. Dev.: 126.033542ms
+	99th Percentile: 618.608719ms
+	95% Confidence Interval: [341.614216, 348.603421]
+
+Server stats: Oregon
+	Mean Latency: 348.567230ms
+	Max Latency: 1154.245605ms
+	Min Latency: 65.337127ms
+	Std. Dev.: 127.873207ms
+	99th Percentile: 622.641507ms
+	95% Confidence Interval: [345.021617, 352.112842]
+
+Server stats: Virginia
+	Mean Latency: 353.879185ms
+	Max Latency: 1378.444759ms
+	Min Latency: 68.355032ms
+	Std. Dev.: 133.419354ms
+	99th Percentile: 669.333554ms
+	95% Confidence Interval: [350.179792, 357.578579]
+
+Server stats: Belgium
+	Mean Latency: 390.577740ms
+	Max Latency: 1279.851774ms
+	Min Latency: 142.303613ms
+	Std. Dev.: 130.782927ms
+	99th Percentile: 714.749681ms
+	95% Confidence Interval: [386.951449, 394.204032]
+
+Server stats: Japan
+	Mean Latency: 392.941092ms
+	Max Latency: 1200.113743ms
+	Min Latency: 106.690750ms
+	Std. Dev.: 119.017893ms
+	99th Percentile: 637.683370ms
+	95% Confidence Interval: [389.641016, 396.241168]
+
